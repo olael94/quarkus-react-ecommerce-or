@@ -23,6 +23,10 @@ public class Product extends PanacheEntity {
   @Column(nullable = false)
   private Integer quantity;
 
+  @ManyToOne(optional = true)
+  @JoinColumn(name = "fk_owner_id")
+  private User owner;
+
   // Getters
   public String getProductName() {
     return productName;
@@ -44,6 +48,10 @@ public class Product extends PanacheEntity {
     return quantity;
   }
 
+  public User getOwner() {
+    return owner;
+  }
+
   // Setters
   public void setProductName(String productName) {
     this.productName = productName;
@@ -63,6 +71,10 @@ public class Product extends PanacheEntity {
 
   public void setQuantity(Integer quantity) {
     this.quantity = quantity;
+  }
+
+  public void setOwner(User owner) {
+    this.owner = owner;
   }
 
   // The toString method is used to convert the object to a string representation.

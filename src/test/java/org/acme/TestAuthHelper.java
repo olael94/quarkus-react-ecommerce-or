@@ -10,6 +10,7 @@ import java.util.Set;
 import java.util.UUID;
 import org.acme.entity.Order;
 import org.acme.entity.PasswordResetToken;
+import org.acme.entity.Product;
 import org.acme.entity.Session;
 import org.acme.entity.User;
 
@@ -143,11 +144,56 @@ public class TestAuthHelper {
             });
   }
 
+  /**
+   * Directly creates a product owned by the given user, bypassing the app - createProduct's
+   * response only gives back a message, not a usable product id.
+   */
+  public static Long createProductForUser(Long userId, String productName, double price) {
+    return QuarkusTransaction.requiringNew()
+        .call(
+            () -> {
+              Product product = new Product();
+              product.setOwner(User.findById(userId));
+              product.setProductName(productName);
+              product.setDescription("Test description");
+              product.setPrice(price);
+              product.setImageURL("https://example.com/image.jpg");
+              product.setQuantity(10);
+              product.persist();
+              return product.id;
+            });
+  }
+
+  /**
+   * Directly creates a product with no owner (a house product), same reasoning as
+   * createProductForUser.
+   */
+  public static Long createProductWithNoOwner(String productName, double price) {
+    return QuarkusTransaction.requiringNew()
+        .call(
+            () -> {
+              Product product = new Product();
+              product.setOwner(null);
+              product.setProductName(productName);
+              product.setDescription("Test description");
+              product.setPrice(price);
+              product.setImageURL("https://example.com/image.jpg");
+              product.setQuantity(10);
+              product.persist();
+              return product.id;
+            });
+  }
+
+  /** Directly reads a user's roles, bypassing the app - there's no admin endpoint for this yet. */
   public static Set<User.Role> getUserRoles(String email) {
     return QuarkusTransaction.requiringNew()
         .call(() -> User.find("email", email).<User>firstResult().getRoles());
   }
 
+  /**
+   * Directly reads a session's expiry fields, bypassing the app - there's no admin endpoint for
+   * this yet.
+   */
   public static Instant getSessionExpiresAt(String sessionToken) {
     return QuarkusTransaction.requiringNew()
         .call(() -> Session.find("token", sessionToken).<Session>firstResult().expiresAt);
