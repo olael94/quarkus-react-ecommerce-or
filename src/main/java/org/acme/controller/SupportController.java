@@ -1,14 +1,13 @@
 package org.acme.controller;
 
-import jakarta.ws.rs.CookieParam;
-import jakarta.ws.rs.GET;
-import jakarta.ws.rs.Path;
-import jakarta.ws.rs.Produces;
+import jakarta.transaction.Transactional;
+import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.Cookie;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.util.ArrayList;
 import java.util.List;
+import org.acme.dto.MessageDto;
 import org.acme.dto.OrderDto;
 import org.acme.entity.Order;
 import org.acme.entity.Session;
@@ -46,5 +45,42 @@ public class SupportController {
     }
 
     return Response.ok(orderDtos).build();
+  }
+
+  // Process a refund for an order (support or admin only)
+  @POST
+  @Path("/orders/{id}/refund")
+  @Transactional
+  public Response refundOrder(
+      @PathParam("id") Long id, @CookieParam("session") Cookie sessionCookie) {
+    Session session = SessionAuth.requireValidSession(sessionCookie);
+    if (session == null) {
+      return Response.status(Response.Status.UNAUTHORIZED).build();
+    }
+
+    Response forbidden = SessionAuth.requireRole(session, User.Role.SUPPORT, User.Role.ADMIN);
+    if (forbidden != null) {
+      return forbidden;
+    }
+
+    // Check if the order exists
+    Order order = Order.findById(id);
+    if (order == null) {
+      return Response.status(Response.Status.NOT_FOUND)
+          .entity(new MessageDto("Order not found"))
+          .build();
+    }
+
+    if (order.getStatus() == Order.Status.REFUNDED) {
+      return Response.status(Response.Status.BAD_REQUEST)
+          .entity(new MessageDto("Order has already been refunded"))
+          .build();
+    }
+
+    order.setStatus(Order.Status.REFUNDED);
+    order.persist();
+
+    logger.info("Refunded order with ID: {} for amount: {}", id, order.getTotalAmount());
+    return Response.ok(new MessageDto("Order " + order.id + " refunded successfully")).build();
   }
 }
