@@ -101,8 +101,8 @@ public class OrderController {
       }
     }
 
-    boolean isAdmin = session.user.hasRole(User.Role.ADMIN);
-    boolean allowedToViewThisOrder = isOwner || isAdmin;
+    boolean isStaff = session.user.hasRole(User.Role.ADMIN, User.Role.SUPPORT);
+    boolean allowedToViewThisOrder = isOwner || isStaff;
 
     if (!allowedToViewThisOrder) {
       return Response.status(Response.Status.FORBIDDEN).build();
