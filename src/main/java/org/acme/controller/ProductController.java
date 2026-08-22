@@ -7,6 +7,7 @@ import jakarta.ws.rs.core.Response;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.acme.dto.MessageDto;
+import org.acme.dto.ProductDto;
 import org.acme.dto.ProductSummaryDto;
 import org.acme.entity.Product;
 import org.slf4j.Logger;
@@ -52,7 +53,7 @@ public class ProductController {
           .build();
     }
     logger.info("Fetching product with ID {}", id);
-    return Response.ok(product).build();
+    return Response.ok(new ProductDto(product)).build();
   }
 
   // Update a product by ID
