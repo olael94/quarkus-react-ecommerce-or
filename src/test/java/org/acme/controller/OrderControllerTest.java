@@ -52,6 +52,21 @@ class OrderControllerTest {
     }
 
     @Test
+    void getOrder_asSupport_forSomeoneElseOrder_returns200() {
+      AuthenticatedUser owner = TestAuthHelper.registerAndLogin();
+      long orderId = TestAuthHelper.createOrderForUser(idOf(owner), 19.99);
+
+      AuthenticatedUser support = TestAuthHelper.registerAndLogin();
+      TestAuthHelper.addUserRole(support.email(), User.Role.SUPPORT);
+
+      given()
+          .cookie("session", support.sessionCookie())
+          .get("/api/orders/" + orderId)
+          .then()
+          .statusCode(200);
+    }
+
+    @Test
     void getOrder_asNonOwnerNonAdmin_returns403() {
       AuthenticatedUser owner = TestAuthHelper.registerAndLogin();
       long orderId = TestAuthHelper.createOrderForUser(idOf(owner), 19.99);
