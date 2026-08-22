@@ -158,4 +158,94 @@ class SupportControllerTest {
           .statusCode(400);
     }
   }
+
+  @Nested
+  class SupportPasswordReset {
+
+    private long idOf(AuthenticatedUser user) {
+      return given()
+          .cookie("session", user.sessionCookie())
+          .get("/api/users/me")
+          .jsonPath()
+          .getLong("id");
+    }
+
+    @Test
+    void supportRequestPasswordReset_asSupport_success_targetCanCompleteReset() {
+      AuthenticatedUser support = TestAuthHelper.registerAndLogin();
+      TestAuthHelper.addUserRole(support.email(), User.Role.SUPPORT);
+
+      AuthenticatedUser target = TestAuthHelper.registerAndLogin();
+      long targetId = idOf(target);
+
+      given()
+          .cookie("session", support.sessionCookie())
+          .header("X-CSRF-Token", support.csrfToken())
+          .post("/api/support/users/" + targetId + "/reset-password")
+          .then()
+          .statusCode(200);
+
+      // The triggered reset must produce a real, usable token, not just a
+      // 200 response - complete the flow end to end.
+      String token = TestAuthHelper.getLatestResetTokenFor(target.email());
+      given()
+          .contentType("application/json")
+          .body("{\"token\":\"" + token + "\",\"newPassword\":\"newpassword456\"}")
+          .post("/api/users/reset-password/confirm")
+          .then()
+          .statusCode(200);
+
+      TestAuthHelper.login(target.email(), "newpassword456").then().statusCode(200);
+    }
+
+    @Test
+    void supportRequestPasswordReset_asAdmin_returns200() {
+      AuthenticatedUser admin = TestAuthHelper.registerAndLogin();
+      TestAuthHelper.addUserRole(admin.email(), User.Role.ADMIN);
+
+      AuthenticatedUser target = TestAuthHelper.registerAndLogin();
+      long targetId = idOf(target);
+
+      given()
+          .cookie("session", admin.sessionCookie())
+          .header("X-CSRF-Token", admin.csrfToken())
+          .post("/api/support/users/" + targetId + "/reset-password")
+          .then()
+          .statusCode(200);
+    }
+
+    @Test
+    void supportRequestPasswordReset_asPlainCustomer_returns403() {
+      AuthenticatedUser customer = TestAuthHelper.registerAndLogin();
+      AuthenticatedUser target = TestAuthHelper.registerAndLogin();
+      long targetId = idOf(target);
+
+      given()
+          .cookie("session", customer.sessionCookie())
+          .header("X-CSRF-Token", customer.csrfToken())
+          .post("/api/support/users/" + targetId + "/reset-password")
+          .then()
+          .statusCode(403);
+    }
+
+    @Test
+    void supportRequestPasswordReset_noSession_returns401() {
+      given().post("/api/support/users/1/reset-password").then().statusCode(401);
+    }
+
+    @Test
+    void supportRequestPasswordReset_targetNotFound_returns404() {
+      AuthenticatedUser support = TestAuthHelper.registerAndLogin();
+      TestAuthHelper.addUserRole(support.email(), User.Role.SUPPORT);
+      long supportId = idOf(support);
+      long nonexistentId = supportId + 1_000_000L;
+
+      given()
+          .cookie("session", support.sessionCookie())
+          .header("X-CSRF-Token", support.csrfToken())
+          .post("/api/support/users/" + nonexistentId + "/reset-password")
+          .then()
+          .statusCode(404);
+    }
+  }
 }
