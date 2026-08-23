@@ -5,8 +5,14 @@ import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.Cookie;
 import jakarta.ws.rs.core.Response;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import org.acme.dto.CreateOrderRequest;
 import org.acme.dto.MessageDto;
+import org.acme.dto.OrderItemRequest;
 import org.acme.entity.Order;
+import org.acme.entity.OrderItem;
+import org.acme.entity.Product;
 import org.acme.entity.Session;
 import org.acme.entity.User;
 import org.acme.util.SessionAuth;
@@ -21,27 +27,92 @@ public class OrderController {
   // The logger object is used to log messages to the console.
   private static final Logger logger = LoggerFactory.getLogger(OrderController.class);
 
+  private WebApplicationException badRequest(String message) {
+    return new WebApplicationException(
+        Response.status(Response.Status.BAD_REQUEST).entity(new MessageDto(message)).build());
+  }
+
   // Create a new order (guest or user)
   @POST
   @Transactional
-  public Response createOrder(Order order) {
+  public Response createOrder(CreateOrderRequest request) {
     logger.info("Received request to create an order");
 
-    if (order.getUser() != null) {
-      // Fetch and validate the user if provided
-      User user = User.findById(order.getUser().id);
-      if (user == null) {
-        logger.warn("User not found for ID: {}", order.getUser().id);
-        return Response.status(Response.Status.BAD_REQUEST)
-            .entity(new MessageDto("User not found")) // User will see this message
-            .build();
-      }
-      order.setUser(user);
+    if (request.getItems() == null || request.getItems().isEmpty()) {
+      throw badRequest("Order must contain at least one item");
     }
 
-    order.setOrderDate(LocalDateTime.now());
-    // The guestTrackingId will be generated automatically by the @PrePersist method
+    User user = null;
+    if (request.getUserId() != null) {
+      // Fetch and validate the user if provided
+      user = User.findById(request.getUserId());
+      if (user == null) {
+        logger.warn("User not found for ID: {}", request.getUserId());
+        throw badRequest("User not found");
+      }
+    }
 
+    double total = 0.0;
+    List<OrderItem> newItems = new ArrayList<>();
+
+    // Create the order
+    for (OrderItemRequest itemRequest : request.getItems()) {
+      if (itemRequest.getProductId() == null) {
+        logger.warn("Each item must specify a productId");
+        throw badRequest("Each item must specify a productId");
+      }
+
+      // Validate product exists
+      Product product = Product.findById(itemRequest.getProductId());
+      if (product == null) {
+        logger.warn("Product not found for ID: {}", itemRequest.getProductId());
+        throw badRequest("Product not found: " + itemRequest.getProductId());
+      }
+
+      // Validate quantity is a positive integer
+      Integer quantity = itemRequest.getQuantity();
+      if (quantity == null || quantity <= 0) {
+        logger.warn("Quantity must be a positive for each item: " + product.getProductName());
+        throw badRequest(
+            "Quantity must be a positive integer for each item: " + product.getProductName());
+      }
+
+      // This atomic conditional decrement re-checks stock in the same statement as the update,
+      // so the database - not this code - guarantees two simultaneous orders can't both claim the
+      // last unit
+      int rowsUpdated =
+          Product.update(
+              "quantity = quantity - ?1 where id = ?2 and quantity >= ?1",
+              quantity,
+              product.id); // Update the product quantity
+      if (rowsUpdated == 0) {
+        logger.warn("Not enough stock for product: {}", product.getProductName());
+        throw badRequest("Not enough stock for product: " + product.getProductName());
+      }
+
+      OrderItem orderItem = new OrderItem();
+      orderItem.setProduct(product);
+      orderItem.setQuantity(quantity);
+      orderItem.setUnitPrice(product.getPrice()); // Snapshot the price at the time of purchase
+      newItems.add(orderItem);
+
+      total += product.getPrice() * quantity; // Accumulate total
+    }
+
+    Order order = new Order();
+    order.setUser(user); // Set user if it's a user order, otherwise null for guest
+    order.setGuestEmail(request.getGuestEmail()); // Set guest email if provided
+    order.setOrderDate(LocalDateTime.now());
+    order.setTotalAmount(total);
+    order.setStatus(Order.Status.PENDING);
+
+    // Add the items to the order
+    for (OrderItem item : newItems) {
+      order.getItems().add(item);
+      item.setOrder(order);
+    }
+
+    // The guestTrackingId will be generated automatically by the @PrePersist method
     order.persist(); // Persist the order to the database
 
     // User will see this message

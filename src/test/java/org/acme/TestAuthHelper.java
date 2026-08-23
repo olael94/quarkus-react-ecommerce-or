@@ -184,6 +184,40 @@ public class TestAuthHelper {
             });
   }
 
+  /** Directly reads a product's current stock quantity, bypassing the app. */
+  public static Integer getProductQuantity(Long productId) {
+    return QuarkusTransaction.requiringNew()
+        .call(() -> Product.<Product>findById(productId).getQuantity());
+  }
+
+  /**
+   * Directly loads an order by id with its items collection initialized, bypassing the app -
+   * createOrder's response only gives back a tracking message, and GET /api/orders/{id} doesn't
+   * expose totalAmount, status, or items.
+   */
+  public static Order getOrderWithItems(Long orderId) {
+    return QuarkusTransaction.requiringNew()
+        .call(
+            () -> {
+              Order order = Order.findById(orderId);
+              order
+                  .getItems()
+                  .size(); // force the lazy collection to load before the session closes
+              return order;
+            });
+  }
+
+  /** Same as getOrderWithItems, but looked up by guestTrackingId for guest orders. */
+  public static Order getGuestOrderWithItems(String guestTrackingId) {
+    return QuarkusTransaction.requiringNew()
+        .call(
+            () -> {
+              Order order = Order.find("guestTrackingId", guestTrackingId).firstResult();
+              order.getItems().size();
+              return order;
+            });
+  }
+
   /** Directly reads a user's roles, bypassing the app - there's no admin endpoint for this yet. */
   public static Set<User.Role> getUserRoles(String email) {
     return QuarkusTransaction.requiringNew()

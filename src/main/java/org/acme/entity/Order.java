@@ -3,6 +3,8 @@ package org.acme.entity;
 import io.quarkus.hibernate.orm.panache.PanacheEntity;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -22,6 +24,9 @@ public class Order extends PanacheEntity {
   @Enumerated(EnumType.STRING)
   @Column(columnDefinition = "VARCHAR(20)")
   private Status status;
+
+  @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
+  private List<OrderItem> items = new ArrayList<>();
 
   @Column(nullable = true) // GUEST ORDERS Store guest email for guest orders
   private String guestEmail;
@@ -59,6 +64,10 @@ public class Order extends PanacheEntity {
 
   public Status getStatus() {
     return status;
+  }
+
+  public List<OrderItem> getItems() {
+    return items;
   }
 
   public String getGuestEmail() {
