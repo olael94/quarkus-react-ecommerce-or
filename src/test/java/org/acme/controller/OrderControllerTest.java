@@ -3,17 +3,27 @@ package org.acme.controller;
 import static io.restassured.RestAssured.given;
 import static org.acme.TestAuthHelper.AuthenticatedUser;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
+import com.stripe.exception.StripeException;
+import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
 import org.acme.TestAuthHelper;
 import org.acme.entity.Order;
 import org.acme.entity.User;
+import org.acme.service.StripeCheckoutService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 /** Covers every endpoint in OrderController, grouped by concern. */
 @QuarkusTest
 class OrderControllerTest {
+
+  @InjectMock StripeCheckoutService stripeCheckoutService;
 
   private long idOf(AuthenticatedUser user) {
     return given()
@@ -127,6 +137,12 @@ class OrderControllerTest {
   @Nested
   class CreateOrder {
 
+    @BeforeEach
+    void stubStripeCheckout() throws Exception {
+      when(stripeCheckoutService.createCheckoutSession(any()))
+          .thenReturn("https://checkout.stripe.com/fake-session");
+    }
+
     private String singleItemBody(Long productId, int quantity) {
       return "{\"items\":[{\"productId\":" + productId + ",\"quantity\":" + quantity + "}]}";
     }
@@ -153,50 +169,38 @@ class OrderControllerTest {
           + "}]}";
     }
 
-    // createOrder's response is just a tracking message - "Your order tracking number is 42" for
-    // a user order, or "Your order guest tracking number is <uuid>" for a guest one - both end
-    // with the id/tracking number, so tests parse it off the end rather than needing a new
-    // response shape.
-    private String lastToken(String message) {
-      return message.substring(message.lastIndexOf(' ') + 1);
-    }
-
     @Test
-    void createOrder_asGuest_computesTotalFromProductPrice() {
+    void createOrder_asGuest_computesTotalFromProductPrice() throws StripeException {
       Long productId = TestAuthHelper.createProductWithNoOwner("Widget", 12.50);
 
-      String message =
-          given()
-              .contentType("application/json")
-              .body(singleItemBody(productId, 3))
-              .post("/api/orders")
-              .then()
-              .statusCode(201)
-              .extract()
-              .jsonPath()
-              .getString("message");
+      given()
+          .contentType("application/json")
+          .body(singleItemBody(productId, 3))
+          .post("/api/orders")
+          .then()
+          .statusCode(201);
 
-      Order order = TestAuthHelper.getGuestOrderWithItems(lastToken(message));
+      ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
+      verify(stripeCheckoutService).createCheckoutSession(orderCaptor.capture());
+      Order order = TestAuthHelper.getOrderWithItems(orderCaptor.getValue().id);
 
       assertEquals(37.50, order.getTotalAmount(), 0.001);
     }
 
     @Test
-    void createOrder_setsStatusPending() {
+    void createOrder_setsStatusPending() throws StripeException {
       Long productId = TestAuthHelper.createProductWithNoOwner("Widget", 5.00);
 
-      String message =
-          given()
-              .contentType("application/json")
-              .body(singleItemBody(productId, 1))
-              .post("/api/orders")
-              .then()
-              .statusCode(201)
-              .extract()
-              .jsonPath()
-              .getString("message");
+      given()
+          .contentType("application/json")
+          .body(singleItemBody(productId, 1))
+          .post("/api/orders")
+          .then()
+          .statusCode(201);
 
-      Order order = TestAuthHelper.getGuestOrderWithItems(lastToken(message));
+      ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
+      verify(stripeCheckoutService).createCheckoutSession(orderCaptor.capture());
+      Order order = TestAuthHelper.getOrderWithItems(orderCaptor.getValue().id);
 
       assertEquals(Order.Status.PENDING, order.getStatus());
     }
@@ -216,22 +220,20 @@ class OrderControllerTest {
     }
 
     @Test
-    void createOrder_multipleItems_computesCorrectTotalAndItemCount() {
+    void createOrder_multipleItems_computesCorrectTotalAndItemCount() throws StripeException {
       Long productId1 = TestAuthHelper.createProductWithNoOwner("Widget", 10.00);
       Long productId2 = TestAuthHelper.createProductWithNoOwner("Gadget", 3.50);
 
-      String message =
-          given()
-              .contentType("application/json")
-              .body(twoItemBody(productId1, 2, productId2, 4))
-              .post("/api/orders")
-              .then()
-              .statusCode(201)
-              .extract()
-              .jsonPath()
-              .getString("message");
+      given()
+          .contentType("application/json")
+          .body(twoItemBody(productId1, 2, productId2, 4))
+          .post("/api/orders")
+          .then()
+          .statusCode(201);
 
-      Order order = TestAuthHelper.getGuestOrderWithItems(lastToken(message));
+      ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
+      verify(stripeCheckoutService).createCheckoutSession(orderCaptor.capture());
+      Order order = TestAuthHelper.getOrderWithItems(orderCaptor.getValue().id);
 
       assertEquals(2, order.getItems().size());
       assertEquals(34.00, order.getTotalAmount(), 0.001); // (2 * 10.00) + (4 * 3.50)
@@ -325,24 +327,21 @@ class OrderControllerTest {
     }
 
     @Test
-    void createOrder_asRegisteredUser_setsOwner() {
+    void createOrder_asRegisteredUser_setsOwner() throws StripeException {
       AuthenticatedUser buyer = TestAuthHelper.registerAndLogin();
       long buyerId = idOf(buyer);
       Long productId = TestAuthHelper.createProductWithNoOwner("Widget", 5.00);
 
-      String message =
-          given()
-              .contentType("application/json")
-              .body(singleItemBodyForUser(buyerId, productId, 1))
-              .post("/api/orders")
-              .then()
-              .statusCode(201)
-              .extract()
-              .jsonPath()
-              .getString("message");
+      given()
+          .contentType("application/json")
+          .body(singleItemBodyForUser(buyerId, productId, 1))
+          .post("/api/orders")
+          .then()
+          .statusCode(201);
 
-      long orderId = Long.parseLong(lastToken(message));
-      Order order = TestAuthHelper.getOrderWithItems(orderId);
+      ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
+      verify(stripeCheckoutService).createCheckoutSession(orderCaptor.capture());
+      Order order = TestAuthHelper.getOrderWithItems(orderCaptor.getValue().id);
 
       assertEquals(buyerId, order.getUser().id);
     }

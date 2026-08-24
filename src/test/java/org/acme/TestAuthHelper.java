@@ -192,7 +192,7 @@ public class TestAuthHelper {
 
   /**
    * Directly loads an order by id with its items collection initialized, bypassing the app -
-   * createOrder's response only gives back a tracking message, and GET /api/orders/{id} doesn't
+   * createOrder's response only gives back a Stripe checkout URL, and GET /api/orders/{id} doesn't
    * expose totalAmount, status, or items.
    */
   public static Order getOrderWithItems(Long orderId) {
@@ -203,17 +203,6 @@ public class TestAuthHelper {
               order
                   .getItems()
                   .size(); // force the lazy collection to load before the session closes
-              return order;
-            });
-  }
-
-  /** Same as getOrderWithItems, but looked up by guestTrackingId for guest orders. */
-  public static Order getGuestOrderWithItems(String guestTrackingId) {
-    return QuarkusTransaction.requiringNew()
-        .call(
-            () -> {
-              Order order = Order.find("guestTrackingId", guestTrackingId).firstResult();
-              order.getItems().size();
               return order;
             });
   }
