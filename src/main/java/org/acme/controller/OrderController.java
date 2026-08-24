@@ -1,5 +1,7 @@
 package org.acme.controller;
 
+import com.stripe.exception.StripeException;
+import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.Cookie;
@@ -7,6 +9,7 @@ import jakarta.ws.rs.core.Response;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import org.acme.dto.CheckoutResponseDto;
 import org.acme.dto.CreateOrderRequest;
 import org.acme.dto.MessageDto;
 import org.acme.dto.OrderItemRequest;
@@ -15,6 +18,7 @@ import org.acme.entity.OrderItem;
 import org.acme.entity.Product;
 import org.acme.entity.Session;
 import org.acme.entity.User;
+import org.acme.service.StripeCheckoutService;
 import org.acme.util.SessionAuth;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,9 +31,19 @@ public class OrderController {
   // The logger object is used to log messages to the console.
   private static final Logger logger = LoggerFactory.getLogger(OrderController.class);
 
+  @Inject StripeCheckoutService stripeCheckoutService;
+
+  // Helper method to return a WebApplicationException with a 400 Bad Request status code and the
+  // provided message.
   private WebApplicationException badRequest(String message) {
     return new WebApplicationException(
         Response.status(Response.Status.BAD_REQUEST).entity(new MessageDto(message)).build());
+  }
+
+  // Helper method to return a WebApplicationException with a 500 Internal Server Error status code
+  private WebApplicationException badGateway(String message) {
+    return new WebApplicationException(
+        Response.status(Response.Status.BAD_GATEWAY).entity(new MessageDto(message)).build());
   }
 
   // Create a new order (guest or user)
@@ -116,14 +130,20 @@ public class OrderController {
     order.persist(); // Persist the order to the database
 
     // User will see this message
-    String trackingInfo =
-        order.getUser() == null
-            ? "Your order guest tracking number is " + order.getGuestTrackingId()
-            : "Your order tracking number is " + order.id;
+    String checkoutUrl;
+    try {
+      checkoutUrl = stripeCheckoutService.createCheckoutSession(order);
+    } catch (StripeException stripeException) {
+      logger.error(
+          "Failed to create Stripe checkout session for order {}", order.id, stripeException);
+      throw badGateway("Failed to create Stripe checkout session - please try again");
+    }
 
-    logger.info("Order created successfully with tracking info: {}", trackingInfo);
+    logger.info("Order {} created, checkout session started", order.id);
 
-    return Response.status(Response.Status.CREATED).entity(new MessageDto(trackingInfo)).build();
+    return Response.status(Response.Status.CREATED)
+        .entity(new CheckoutResponseDto(checkoutUrl))
+        .build();
   }
 
   // Get GUEST order by guestTrackingId

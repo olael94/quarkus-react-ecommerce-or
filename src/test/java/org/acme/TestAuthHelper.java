@@ -145,6 +145,25 @@ public class TestAuthHelper {
   }
 
   /**
+   * Directly creates a guest order already in PENDING status, bypassing the app - the Stripe
+   * webhook tests need an order that's still waiting on payment confirmation to send a
+   * checkout.session.completed event against.
+   */
+  public static Long createPendingOrder(String guestEmail, double totalAmount) {
+    return QuarkusTransaction.requiringNew()
+        .call(
+            () -> {
+              Order order = new Order();
+              order.setGuestEmail(guestEmail);
+              order.setOrderDate(LocalDateTime.now());
+              order.setTotalAmount(totalAmount);
+              order.setStatus(Order.Status.PENDING);
+              order.persist();
+              return order.id;
+            });
+  }
+
+  /**
    * Directly creates a product owned by the given user, bypassing the app - createProduct's
    * response only gives back a message, not a usable product id.
    */
@@ -192,7 +211,7 @@ public class TestAuthHelper {
 
   /**
    * Directly loads an order by id with its items collection initialized, bypassing the app -
-   * createOrder's response only gives back a tracking message, and GET /api/orders/{id} doesn't
+   * createOrder's response only gives back a Stripe checkout URL, and GET /api/orders/{id} doesn't
    * expose totalAmount, status, or items.
    */
   public static Order getOrderWithItems(Long orderId) {
@@ -203,17 +222,6 @@ public class TestAuthHelper {
               order
                   .getItems()
                   .size(); // force the lazy collection to load before the session closes
-              return order;
-            });
-  }
-
-  /** Same as getOrderWithItems, but looked up by guestTrackingId for guest orders. */
-  public static Order getGuestOrderWithItems(String guestTrackingId) {
-    return QuarkusTransaction.requiringNew()
-        .call(
-            () -> {
-              Order order = Order.find("guestTrackingId", guestTrackingId).firstResult();
-              order.getItems().size();
               return order;
             });
   }
