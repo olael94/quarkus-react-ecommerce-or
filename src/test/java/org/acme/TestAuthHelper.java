@@ -145,6 +145,25 @@ public class TestAuthHelper {
   }
 
   /**
+   * Directly creates a guest order already in PENDING status, bypassing the app - the Stripe
+   * webhook tests need an order that's still waiting on payment confirmation to send a
+   * checkout.session.completed event against.
+   */
+  public static Long createPendingOrder(String guestEmail, double totalAmount) {
+    return QuarkusTransaction.requiringNew()
+        .call(
+            () -> {
+              Order order = new Order();
+              order.setGuestEmail(guestEmail);
+              order.setOrderDate(LocalDateTime.now());
+              order.setTotalAmount(totalAmount);
+              order.setStatus(Order.Status.PENDING);
+              order.persist();
+              return order.id;
+            });
+  }
+
+  /**
    * Directly creates a product owned by the given user, bypassing the app - createProduct's
    * response only gives back a message, not a usable product id.
    */

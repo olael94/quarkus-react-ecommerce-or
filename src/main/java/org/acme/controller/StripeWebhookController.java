@@ -9,9 +9,10 @@ import io.quarkus.mailer.Mail;
 import io.quarkus.mailer.Mailer;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
-import jakarta.ws.rs.HeaderParam;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
+import jakarta.ws.rs.core.Context;
+import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.Response;
 import java.util.Optional;
 import org.acme.dto.MessageDto;
@@ -29,21 +30,20 @@ public class StripeWebhookController {
   @ConfigProperty(name = "app.stripe.webhook-secret")
   String webhookSecret; // Stripe signs the exact bytes it sent, so the body must stay a raw String.
 
-  // Re-serializing a parsed object could change whitespace and break signature
-  // verification.
+  // Re-serializing a parsed object could change whitespace and break signature verification.
 
   @Inject Mailer mailer;
 
-  // Stripe sends a POST request to this endpoint with the raw JSON payload and the Stripe-Signature
-  // header.
+  // Stripe sends a POST request to this endpoint with the raw JSON payload and the Stripe-Signature header
   @POST
   @Transactional
-  public Response receiveWebhook(
-      String payload,
-      @HeaderParam("Stripe-Signature")
-          String signatureHeader) { // Stripe-Signature header carries a signature computed from the
-    // payload using our webhook secret, proving the request really
-    // came from Stripe.
+  public Response receiveWebhook(String payload, @Context HttpHeaders httpHeaders) {
+    // The Stripe-Signature header's value contains a comma (t=...,v1=...). Some clients/proxies
+    // split a header value at commas and send it as two separate headers instead of one string.
+    // @HeaderParam only reads the first one, silently cutting off the v1= part we need to verify
+    // the signature. getHeaderString() reads all instances and joins them back into the full value
+    String signatureHeader = httpHeaders.getHeaderString("Stripe-Signature");
+
     Event event;
     try {
       event = Webhook.constructEvent(payload, signatureHeader, webhookSecret);
