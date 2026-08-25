@@ -4,7 +4,7 @@ import { API_URL } from '../config';
 const AuthContext = createContext();
 
 // Helper function to get CSRF token from cookies
-function getCsrfToken() {
+export function getCsrfToken() {
     const match = document.cookie.match(/(?:^|; )csrf_token=([^;]*)/);
     return match ? decodeURIComponent(match[1]) : null;
 }
