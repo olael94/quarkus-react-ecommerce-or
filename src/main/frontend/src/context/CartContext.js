@@ -24,6 +24,14 @@ function loadCartFromStorage() {
 
 export function CartProvider({ children }) {
     const [items, setItems] = useState(loadCartFromStorage);
+    const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+
+    const openDrawer = () => {
+        setIsDrawerOpen(true);
+    };
+    const closeDrawer = () => {
+        setIsDrawerOpen(false);
+    };
 
     // Every time the cart changes, save the new version to local storage
     useEffect(() => {
@@ -51,6 +59,7 @@ export function CartProvider({ children }) {
             };
             return [...currentItems, newItem];
         });
+        openDrawer(); // Open the cart drawer when an item is added
     };
 
     const removeItem = (productId) => {
@@ -94,6 +103,9 @@ export function CartProvider({ children }) {
                 clearCart,
                 itemCount,
                 estimatedTotal,
+                isDrawerOpen,
+                openDrawer,
+                closeDrawer,
             }}
         >
             {children}

@@ -114,12 +114,6 @@
     transition: background-color 0.3s ease;
 }
 
-.detail-added-message {
-    font-size: 14px;
-    color: #0abab5;
-    margin-top: 10px;
-}
-
 .detail-out-of-stock {
     color: #999;
     font-weight: 600;

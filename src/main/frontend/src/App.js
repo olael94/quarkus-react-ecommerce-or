@@ -9,6 +9,7 @@ import AccountPage from './pages/AccountPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import CartPage from './pages/CartPage';
 import { CartProvider } from './context/CartContext';
+import CartDrawer from './components/CartDrawer/CartDrawer';
 
 const App = () => {
     return (
@@ -17,6 +18,7 @@ const App = () => {
             <AuthProvider>
                 <CartProvider>
                     <Navbar />
+                    <CartDrawer />
                     <Routes>
                         <Route path="/" element={<HomePage />} />
                         <Route path="/products" element={<ProductsPage />} />

@@ -10,7 +10,6 @@ function ProductDetailPage() {
     // use null to get 1 product not a products list
     const [product, setProduct] = useState(null);
     const [quantity, setQuantity] = useState(1);
-    const [addedToCart, setAddedToCart] = useState(false);
     const { addItem } = useCart();
 
     // Fetch the product details from the server
@@ -31,19 +30,14 @@ function ProductDetailPage() {
 
     const handleAddToCart = () => {
         addItem(product, quantity);
-        setAddedToCart(true);
     };
 
-    // The <input>'s value is always a string, even for type="number", so it
-    // has to be converted before we store it as a number.
     const handleDecrement = () => {
         setQuantity((currentQuantity) => Math.max(1, currentQuantity - 1));
-        setAddedToCart(false);
     };
 
     const handleIncrement = () => {
         setQuantity((currentQuantity) => Math.min(product.quantity, currentQuantity + 1));
-        setAddedToCart(false);
     };
 
     return (
@@ -78,7 +72,6 @@ function ProductDetailPage() {
                         <button onClick={handleAddToCart} className="detail-add-to-cart-button">
                             Add to Cart
                         </button>
-                        {addedToCart && <p className="detail-added-to-cart">Added to cart!</p>}
                     </div>
                 )}
             </div>
