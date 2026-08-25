@@ -2,10 +2,12 @@ import React, { useState, useRef, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import { HiOutlineUser, HiOutlineShoppingBag } from 'react-icons/hi2';
 import { useAuth } from '../../context/AuthContext';
+import { useCart } from '../../context/CartContext';
 import './Navbar.css';
 
 const Navbar = () => {
     const { user, logout } = useAuth();
+    const { itemCount } = useCart();
     // State variable to keep track of whether the mobile menu is open or closed
     const [isOpen, setIsOpen] = useState(false);
     // Function to toggle the mobile menu
@@ -66,7 +68,12 @@ const Navbar = () => {
                                 aria-label="Cart"
                                 className={({ isActive }) => (isActive ? 'active' : undefined)}
                             >
-                                <HiOutlineShoppingBag size={22} />
+                                <span className="cart-icon-wrapper">
+                                    <HiOutlineShoppingBag size={22} />
+                                    {itemCount > 0 && (
+                                        <span className="cart-badge">{itemCount}</span>
+                                    )}
+                                </span>
                             </NavLink>
                         </li>
                         <li>

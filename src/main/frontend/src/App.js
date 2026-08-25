@@ -8,21 +8,26 @@ import ProductDetailPage from './pages/ProductDetailPage';
 import AccountPage from './pages/AccountPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import CartPage from './pages/CartPage';
+import { CartProvider } from './context/CartContext';
+import CartDrawer from './components/CartDrawer/CartDrawer';
 
 const App = () => {
     return (
-        //BrowserRouter allows to navigate between pages
+        //BrowserRouter allows navigating between pages
         <BrowserRouter>
             <AuthProvider>
-                <Navbar />
-                <Routes>
-                    <Route path="/" element={<HomePage />} />
-                    <Route path="/products" element={<ProductsPage />} />
-                    <Route path="/products/:id" element={<ProductDetailPage />} />
-                    <Route path="/account" element={<AccountPage />} />
-                    <Route path="/reset-password" element={<ResetPasswordPage />} />
-                    <Route path="/cart" element={<CartPage />} />
-                </Routes>
+                <CartProvider>
+                    <Navbar />
+                    <CartDrawer />
+                    <Routes>
+                        <Route path="/" element={<HomePage />} />
+                        <Route path="/products" element={<ProductsPage />} />
+                        <Route path="/products/:id" element={<ProductDetailPage />} />
+                        <Route path="/account" element={<AccountPage />} />
+                        <Route path="/reset-password" element={<ResetPasswordPage />} />
+                        <Route path="/cart" element={<CartPage />} />
+                    </Routes>
+                </CartProvider>
             </AuthProvider>
         </BrowserRouter>
     );
