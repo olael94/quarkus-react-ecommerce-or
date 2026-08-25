@@ -76,3 +76,27 @@
     font-size: 16px;
     cursor: pointer; /* Changes cursor to pointer on hover */
 }
+
+.productList-add-to-cart {
+    margin-top: 10px;
+    background: #1e3a5f;
+    color: #fff;
+    border: none;
+    border-radius: 30px;
+    padding: 10px 24px;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition:
+        box-shadow 0.2s ease,
+        transform 0.2s ease,
+        background-color 0.2s ease;
+}
+
+.productList-add-to-cart:hover {
+    background: #16293f;
+    box-shadow: 0 4px 12px rgba(30, 58, 95, 0.4);
+    transform: translateY(-2px);
+}
