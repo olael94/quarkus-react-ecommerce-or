@@ -100,7 +100,7 @@
 }
 
 .detail-add-to-cart-button {
-    background: #0abab5;
+    background: #1e3a5f;
     color: #fff;
     border: none;
     border-radius: 30px;
@@ -111,7 +111,16 @@
     text-transform: uppercase;
     cursor: pointer;
     flex: 1;
-    transition: background-color 0.3s ease;
+    transition:
+        box-shadow 0.2s ease,
+        transform 0.2s ease,
+        background-color 0.2s ease;
+}
+
+.detail-add-to-cart-button:hover {
+    background: #16293f;
+    box-shadow: 0 4px 12px rgba(30, 58, 95, 0.4);
+    transform: translateY(-2px);
 }
 
 .detail-out-of-stock {
