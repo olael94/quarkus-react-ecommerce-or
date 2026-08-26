@@ -5,21 +5,21 @@ import static io.quarkus.hibernate.orm.panache.PanacheEntity_.id;
 import io.quarkus.hibernate.orm.panache.Panache;
 import io.quarkus.mailer.Mail;
 import io.quarkus.mailer.Mailer;
+import io.vertx.core.http.HttpServerRequest;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
-import jakarta.ws.rs.core.Cookie;
-import jakarta.ws.rs.core.MediaType;
-import jakarta.ws.rs.core.NewCookie;
-import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.core.*;
 import java.time.Duration;
 import java.time.Instant;
 import org.acme.dto.*;
 import org.acme.entity.PasswordResetToken;
 import org.acme.entity.Session;
 import org.acme.entity.User;
+import org.acme.exception.RateLimitExceededException;
 import org.acme.service.PasswordResetService;
+import org.acme.service.RateLimitService;
 import org.acme.util.CookieBuilder;
 import org.acme.util.SessionAuth;
 import org.acme.util.TokenGenerator;
@@ -48,12 +48,31 @@ public class UserController {
 
   @Inject PasswordResetService passwordResetService;
 
+  @Inject RateLimitService rateLimitService;
+
+  @Inject
+  @ConfigProperty(name = "app.rate-limit.register.max-attempts")
+  int registerMaxAttempts;
+
+  @Inject
+  @ConfigProperty(name = "app.rate-limit.password-reset-request.max-attempts")
+  int passwordResetRequestMaxAttempts;
+
+  @Inject
+  @ConfigProperty(name = "app.rate-limit.password-reset-confirm.max-attempts")
+  int passwordResetConfirmMaxAttempts;
+
   // Create a new User
   @POST
   @Path("/register")
   @Consumes(MediaType.APPLICATION_JSON)
   @Transactional
-  public Response createUser(@Valid RegisterDto registerDto) {
+  public Response createUser(@Valid RegisterDto registerDto, @Context HttpServerRequest request) {
+    String ipAddress = request.remoteAddress().host();
+    if (!rateLimitService.allowRequest("register", ipAddress, registerMaxAttempts)) {
+      throw new RateLimitExceededException("Too many registration attempts. Try again later.");
+    }
+
     logger.info("Creating user: {}", registerDto.getUsername());
 
     // Check if a user with the same email already exists
@@ -92,9 +111,7 @@ public class UserController {
     if (user != null
         && user.getLockedUntil() != null
         && user.getLockedUntil().isAfter(Instant.now())) {
-      return Response.status(429)
-          .entity(new MessageDto("Too many failed login attempts. Try again later."))
-          .build();
+      throw new RateLimitExceededException("Too many failed login attempts. Try again later.");
     }
 
     // A deactivated account (admin-controlled) is separate from a temporary
@@ -282,7 +299,15 @@ public class UserController {
   @Path("/reset-password/request")
   @Consumes(MediaType.APPLICATION_JSON)
   @Transactional
-  public Response requestPasswordReset(@Valid PasswordResetRequestDto requestDto) {
+  public Response requestPasswordReset(
+      @Valid PasswordResetRequestDto requestDto, @Context HttpServerRequest request) {
+    // This rate limit is per IP address, not per user.
+    String ipAddress = request.remoteAddress().host();
+    if (!rateLimitService.allowRequest(
+        "password-reset-request", ipAddress, passwordResetRequestMaxAttempts)) {
+      throw new RateLimitExceededException("Too many password reset requests. Try again later.");
+    }
+
     logger.info("Resetting password for email: {}", requestDto.getEmail());
 
     // Find the user by email
@@ -315,7 +340,15 @@ public class UserController {
   @Path("/reset-password/confirm")
   @Consumes(MediaType.APPLICATION_JSON)
   @Transactional
-  public Response confirmPasswordReset(@Valid PasswordResetConfirmDto confirmDto) {
+  public Response confirmPasswordReset(
+      @Valid PasswordResetConfirmDto confirmDto, @Context HttpServerRequest request) {
+
+    // This rate limit is per IP address, not per user.
+    String ipAddress = request.remoteAddress().host();
+    if (!rateLimitService.allowRequest(
+        "password-reset-confirm", ipAddress, passwordResetConfirmMaxAttempts)) {
+      throw new RateLimitExceededException("Too many password reset attempts. Try again later.");
+    }
 
     PasswordResetToken resetToken = PasswordResetToken.findValid(confirmDto.getToken());
     if (resetToken == null) {
