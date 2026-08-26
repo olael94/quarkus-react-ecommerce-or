@@ -105,6 +105,77 @@ class ProductControllerTest {
     }
 
     @Test
+    void createProduct_invalidImageUrlFormat_returns400() {
+      AuthenticatedUser vendor = TestAuthHelper.registerAndLogin();
+      TestAuthHelper.addUserRole(vendor.email(), User.Role.VENDOR);
+
+      given()
+          .cookie("session", vendor.sessionCookie())
+          .header("X-CSRF-Token", vendor.csrfToken())
+          .contentType("application/json")
+          .body(
+              "{\"productName\":\"Bad URL Product\",\"description\":\"A test product\","
+                  + "\"price\":19.99,\"imageURL\":\"not-a-url\",\"quantity\":5}")
+          .post("/api/products")
+          .then()
+          .statusCode(400);
+    }
+
+    @Test
+    void createProduct_negativePrice_returns400() {
+      AuthenticatedUser vendor = TestAuthHelper.registerAndLogin();
+      TestAuthHelper.addUserRole(vendor.email(), User.Role.VENDOR);
+
+      given()
+          .cookie("session", vendor.sessionCookie())
+          .header("X-CSRF-Token", vendor.csrfToken())
+          .contentType("application/json")
+          .body(
+              "{\"productName\":\"Negative Price Product\",\"description\":\"A test product\","
+                  + "\"price\":-5.00,\"imageURL\":\"https://example.com/image.png\",\"quantity\":5}")
+          .post("/api/products")
+          .then()
+          .statusCode(400);
+    }
+
+    @Test
+    void createProduct_negativeQuantity_returns400() {
+      AuthenticatedUser vendor = TestAuthHelper.registerAndLogin();
+      TestAuthHelper.addUserRole(vendor.email(), User.Role.VENDOR);
+
+      given()
+          .cookie("session", vendor.sessionCookie())
+          .header("X-CSRF-Token", vendor.csrfToken())
+          .contentType("application/json")
+          .body(
+              "{\"productName\":\"Negative Quantity Product\",\"description\":\"A test product\","
+                  + "\"price\":19.99,\"imageURL\":\"https://example.com/image.png\",\"quantity\":-1}")
+          .post("/api/products")
+          .then()
+          .statusCode(400);
+    }
+
+    @Test
+    void createProduct_descriptionTooLong_returns400() {
+      AuthenticatedUser vendor = TestAuthHelper.registerAndLogin();
+      TestAuthHelper.addUserRole(vendor.email(), User.Role.VENDOR);
+      String tooLongDescription = "a".repeat(2001);
+
+      given()
+          .cookie("session", vendor.sessionCookie())
+          .header("X-CSRF-Token", vendor.csrfToken())
+          .contentType("application/json")
+          .body(
+              "{\"productName\":\"Long Description Product\",\"description\":\""
+                  + tooLongDescription
+                  + "\",\"price\":19.99,\"imageURL\":\"https://example.com/image.png\","
+                  + "\"quantity\":5}")
+          .post("/api/products")
+          .then()
+          .statusCode(400);
+    }
+
+    @Test
     void createProduct_setsCallerAsOwner() {
       AuthenticatedUser vendor = TestAuthHelper.registerAndLogin();
       TestAuthHelper.addUserRole(vendor.email(), User.Role.VENDOR);
@@ -273,6 +344,42 @@ class ProductControllerTest {
           .put("/api/products/1")
           .then()
           .statusCode(401);
+    }
+
+    @Test
+    void updateProduct_invalidImageUrlFormat_returns400() {
+      AuthenticatedUser owner = TestAuthHelper.registerAndLogin();
+      long ownerId = idOf(owner);
+      long productId = TestAuthHelper.createProductForUser(ownerId, "Original Product", 9.99);
+
+      given()
+          .cookie("session", owner.sessionCookie())
+          .header("X-CSRF-Token", owner.csrfToken())
+          .contentType("application/json")
+          .body(
+              "{\"productName\":\"Updated Product\",\"description\":\"Updated description\","
+                  + "\"price\":29.99,\"imageURL\":\"not-a-url\"}")
+          .put("/api/products/" + productId)
+          .then()
+          .statusCode(400);
+    }
+
+    @Test
+    void updateProduct_negativePrice_returns400() {
+      AuthenticatedUser owner = TestAuthHelper.registerAndLogin();
+      long ownerId = idOf(owner);
+      long productId = TestAuthHelper.createProductForUser(ownerId, "Original Product", 9.99);
+
+      given()
+          .cookie("session", owner.sessionCookie())
+          .header("X-CSRF-Token", owner.csrfToken())
+          .contentType("application/json")
+          .body(
+              "{\"productName\":\"Updated Product\",\"description\":\"Updated description\","
+                  + "\"price\":-1.00,\"imageURL\":\"https://example.com/updated.png\"}")
+          .put("/api/products/" + productId)
+          .then()
+          .statusCode(400);
     }
 
     @Test

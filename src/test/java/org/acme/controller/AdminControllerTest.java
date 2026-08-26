@@ -602,6 +602,43 @@ class AdminControllerTest {
     }
 
     @Test
+    void updateOrder_missingOrderDate_returns400() {
+      AuthenticatedUser owner = TestAuthHelper.registerAndLogin();
+      long orderId = TestAuthHelper.createOrderForUser(idOf(owner), 19.99);
+
+      AuthenticatedUser admin = TestAuthHelper.registerAndLogin();
+      TestAuthHelper.addUserRole(admin.email(), User.Role.ADMIN);
+
+      given()
+          .cookie("session", admin.sessionCookie())
+          .header("X-CSRF-Token", admin.csrfToken())
+          .contentType("application/json")
+          .body("{\"totalAmount\":29.99,\"status\":\"COMPLETED\"}")
+          .put("/api/admin/orders/" + orderId)
+          .then()
+          .statusCode(400);
+    }
+
+    @Test
+    void updateOrder_negativeTotalAmount_returns400() {
+      AuthenticatedUser owner = TestAuthHelper.registerAndLogin();
+      long orderId = TestAuthHelper.createOrderForUser(idOf(owner), 19.99);
+
+      AuthenticatedUser admin = TestAuthHelper.registerAndLogin();
+      TestAuthHelper.addUserRole(admin.email(), User.Role.ADMIN);
+
+      given()
+          .cookie("session", admin.sessionCookie())
+          .header("X-CSRF-Token", admin.csrfToken())
+          .contentType("application/json")
+          .body(
+              "{\"orderDate\":\"2026-01-01T10:00:00\",\"totalAmount\":-5.00,\"status\":\"COMPLETED\"}")
+          .put("/api/admin/orders/" + orderId)
+          .then()
+          .statusCode(400);
+    }
+
+    @Test
     void updateOrder_orderNotFound_returns404() {
       AuthenticatedUser admin = TestAuthHelper.registerAndLogin();
       TestAuthHelper.addUserRole(admin.email(), User.Role.ADMIN);

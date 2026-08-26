@@ -3,16 +3,14 @@ package org.acme.controller;
 import com.stripe.exception.StripeException;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
+import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.Cookie;
 import jakarta.ws.rs.core.Response;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import org.acme.dto.CheckoutResponseDto;
-import org.acme.dto.CreateOrderRequest;
-import org.acme.dto.MessageDto;
-import org.acme.dto.OrderItemRequest;
+import org.acme.dto.*;
 import org.acme.entity.Order;
 import org.acme.entity.OrderItem;
 import org.acme.entity.Product;
@@ -49,12 +47,8 @@ public class OrderController {
   // Create a new order (guest or user)
   @POST
   @Transactional
-  public Response createOrder(CreateOrderRequest request) {
+  public Response createOrder(@Valid CreateOrderRequestDto request) {
     logger.info("Received request to create an order");
-
-    if (request.getItems() == null || request.getItems().isEmpty()) {
-      throw badRequest("Order must contain at least one item");
-    }
 
     User user = null;
     if (request.getUserId() != null) {
@@ -70,11 +64,7 @@ public class OrderController {
     List<OrderItem> newItems = new ArrayList<>();
 
     // Create the order
-    for (OrderItemRequest itemRequest : request.getItems()) {
-      if (itemRequest.getProductId() == null) {
-        logger.warn("Each item must specify a productId");
-        throw badRequest("Each item must specify a productId");
-      }
+    for (OrderItemRequestDto itemRequest : request.getItems()) {
 
       // Validate product exists
       Product product = Product.findById(itemRequest.getProductId());
@@ -85,11 +75,6 @@ public class OrderController {
 
       // Validate quantity is a positive integer
       Integer quantity = itemRequest.getQuantity();
-      if (quantity == null || quantity <= 0) {
-        logger.warn("Quantity must be a positive for each item: " + product.getProductName());
-        throw badRequest(
-            "Quantity must be a positive integer for each item: " + product.getProductName());
-      }
 
       // This atomic conditional decrement re-checks stock in the same statement as the update,
       // so the database - not this code - guarantees two simultaneous orders can't both claim the
@@ -210,7 +195,8 @@ public class OrderController {
   @Path("{guestTrackingId}")
   @Transactional
   public Response updateGuestOrder(
-      @PathParam("guestTrackingId") String guestTrackingId, Order updatedGuestOrder) {
+      @PathParam("guestTrackingId") String guestTrackingId,
+      @Valid UpdateGuestOrderRequestDto request) {
     logger.info("Updating guest order with tracking ID: {}", guestTrackingId);
 
     // Find the existing guest order by guestTrackingId
@@ -224,9 +210,9 @@ public class OrderController {
     }
 
     // Update order fields
-    existingGuestOrder.setOrderDate(updatedGuestOrder.getOrderDate());
-    existingGuestOrder.setTotalAmount(updatedGuestOrder.getTotalAmount());
-    existingGuestOrder.setStatus(updatedGuestOrder.getStatus());
+    existingGuestOrder.setOrderDate(request.getOrderDate());
+    existingGuestOrder.setTotalAmount(request.getTotalAmount());
+    existingGuestOrder.setStatus(request.getStatus());
 
     // Persist or update the order
     existingGuestOrder.persist();

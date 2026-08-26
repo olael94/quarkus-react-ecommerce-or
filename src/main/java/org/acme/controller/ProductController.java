@@ -1,15 +1,14 @@
 package org.acme.controller;
 
 import jakarta.transaction.Transactional;
+import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.Cookie;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.util.List;
 import java.util.stream.Collectors;
-import org.acme.dto.MessageDto;
-import org.acme.dto.ProductDto;
-import org.acme.dto.ProductSummaryDto;
+import org.acme.dto.*;
 import org.acme.entity.Product;
 import org.acme.entity.Session;
 import org.acme.entity.User;
@@ -27,7 +26,8 @@ public class ProductController {
   // Create a new product
   @POST
   @Transactional
-  public Response createProduct(Product product, @CookieParam("session") Cookie sessionCookie) {
+  public Response createProduct(
+      @Valid CreateProductRequestDto request, @CookieParam("session") Cookie sessionCookie) {
 
     Session session = SessionAuth.requireValidSession(sessionCookie);
     if (session == null) {
@@ -39,6 +39,14 @@ public class ProductController {
       return forbidden;
     }
 
+    // Built field-by-field from the DTO, not bound directly from the request
+    // body - a client has no way to set id or owner at creation.
+    Product product = new Product();
+    product.setProductName(request.getProductName());
+    product.setDescription(request.getDescription());
+    product.setPrice(request.getPrice());
+    product.setImageURL(request.getImageURL());
+    product.setQuantity(request.getQuantity());
     product.setOwner(session.user);
     logger.info("Creating product: {}", product.getProductName());
     product.persist(); // Persist the product
@@ -77,7 +85,9 @@ public class ProductController {
   @Path("{id}")
   @Transactional
   public Response updateProduct(
-      @PathParam("id") Long id, Product product, @CookieParam("session") Cookie sessionCookie) {
+      @PathParam("id") Long id,
+      @Valid UpdateProductRequestDto request,
+      @CookieParam("session") Cookie sessionCookie) {
     Session session = SessionAuth.requireValidSession(sessionCookie);
     if (session == null) {
       return Response.status(Response.Status.UNAUTHORIZED).build();
@@ -99,10 +109,10 @@ public class ProductController {
       return Response.status(Response.Status.FORBIDDEN).build();
     }
 
-    existingProduct.setProductName(product.getProductName());
-    existingProduct.setDescription(product.getDescription());
-    existingProduct.setPrice(product.getPrice());
-    existingProduct.setImageURL(product.getImageURL());
+    existingProduct.setProductName(request.getProductName());
+    existingProduct.setDescription(request.getDescription());
+    existingProduct.setPrice(request.getPrice());
+    existingProduct.setImageURL(request.getImageURL());
     existingProduct.persist();
 
     logger.info("Updated product with ID {}", id);

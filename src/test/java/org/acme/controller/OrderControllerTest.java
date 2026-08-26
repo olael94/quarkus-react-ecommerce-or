@@ -315,6 +315,21 @@ class OrderControllerTest {
     }
 
     @Test
+    void createOrder_invalidGuestEmailFormat_returns400() {
+      Long productId = TestAuthHelper.createProductWithNoOwner("Widget", 5.00);
+
+      given()
+          .contentType("application/json")
+          .body(
+              "{\"guestEmail\":\"not-an-email\",\"items\":[{\"productId\":"
+                  + productId
+                  + ",\"quantity\":1}]}")
+          .post("/api/orders")
+          .then()
+          .statusCode(400);
+    }
+
+    @Test
     void createOrder_unknownUserId_returns400() {
       Long productId = TestAuthHelper.createProductWithNoOwner("Widget", 5.00);
 
@@ -344,6 +359,68 @@ class OrderControllerTest {
       Order order = TestAuthHelper.getOrderWithItems(orderCaptor.getValue().id);
 
       assertEquals(buyerId, order.getUser().id);
+    }
+  }
+
+  @Nested
+  class UpdateGuestOrder {
+
+    private static final String VALID_UPDATE_BODY =
+        "{\"orderDate\":\"2026-01-01T10:00:00\",\"totalAmount\":29.99,\"status\":\"COMPLETED\"}";
+
+    private String trackingIdOf(long orderId) {
+      return TestAuthHelper.getOrderWithItems(orderId).getGuestTrackingId();
+    }
+
+    @Test
+    void updateGuestOrder_success_returns200() {
+      long orderId = TestAuthHelper.createGuestOrder(9.99);
+
+      given()
+          .contentType("application/json")
+          .body(VALID_UPDATE_BODY)
+          .put("/api/orders/" + trackingIdOf(orderId))
+          .then()
+          .statusCode(200);
+
+      Order updated = TestAuthHelper.getOrderWithItems(orderId);
+      assertEquals(29.99, updated.getTotalAmount(), 0.001);
+      assertEquals(Order.Status.COMPLETED, updated.getStatus());
+    }
+
+    @Test
+    void updateGuestOrder_notFound_returns404() {
+      given()
+          .contentType("application/json")
+          .body(VALID_UPDATE_BODY)
+          .put("/api/orders/not-a-real-tracking-id")
+          .then()
+          .statusCode(404);
+    }
+
+    @Test
+    void updateGuestOrder_missingOrderDate_returns400() {
+      long orderId = TestAuthHelper.createGuestOrder(9.99);
+
+      given()
+          .contentType("application/json")
+          .body("{\"totalAmount\":29.99,\"status\":\"COMPLETED\"}")
+          .put("/api/orders/" + trackingIdOf(orderId))
+          .then()
+          .statusCode(400);
+    }
+
+    @Test
+    void updateGuestOrder_negativeTotalAmount_returns400() {
+      long orderId = TestAuthHelper.createGuestOrder(9.99);
+
+      given()
+          .contentType("application/json")
+          .body(
+              "{\"orderDate\":\"2026-01-01T10:00:00\",\"totalAmount\":-1.00,\"status\":\"COMPLETED\"}")
+          .put("/api/orders/" + trackingIdOf(orderId))
+          .then()
+          .statusCode(400);
     }
   }
 }
