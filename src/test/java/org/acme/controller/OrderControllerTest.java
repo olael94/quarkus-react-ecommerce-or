@@ -315,6 +315,21 @@ class OrderControllerTest {
     }
 
     @Test
+    void createOrder_invalidGuestEmailFormat_returns400() {
+      Long productId = TestAuthHelper.createProductWithNoOwner("Widget", 5.00);
+
+      given()
+          .contentType("application/json")
+          .body(
+              "{\"guestEmail\":\"not-an-email\",\"items\":[{\"productId\":"
+                  + productId
+                  + ",\"quantity\":1}]}")
+          .post("/api/orders")
+          .then()
+          .statusCode(400);
+    }
+
+    @Test
     void createOrder_unknownUserId_returns400() {
       Long productId = TestAuthHelper.createProductWithNoOwner("Widget", 5.00);
 
