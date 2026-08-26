@@ -10,10 +10,7 @@ import jakarta.ws.rs.core.Response;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import org.acme.dto.CheckoutResponseDto;
-import org.acme.dto.CreateOrderRequestDto;
-import org.acme.dto.MessageDto;
-import org.acme.dto.OrderItemRequestDto;
+import org.acme.dto.*;
 import org.acme.entity.Order;
 import org.acme.entity.OrderItem;
 import org.acme.entity.Product;
@@ -198,7 +195,8 @@ public class OrderController {
   @Path("{guestTrackingId}")
   @Transactional
   public Response updateGuestOrder(
-      @PathParam("guestTrackingId") String guestTrackingId, Order updatedGuestOrder) {
+      @PathParam("guestTrackingId") String guestTrackingId,
+      @Valid UpdateGuestOrderRequestDto request) {
     logger.info("Updating guest order with tracking ID: {}", guestTrackingId);
 
     // Find the existing guest order by guestTrackingId
@@ -212,9 +210,9 @@ public class OrderController {
     }
 
     // Update order fields
-    existingGuestOrder.setOrderDate(updatedGuestOrder.getOrderDate());
-    existingGuestOrder.setTotalAmount(updatedGuestOrder.getTotalAmount());
-    existingGuestOrder.setStatus(updatedGuestOrder.getStatus());
+    existingGuestOrder.setOrderDate(request.getOrderDate());
+    existingGuestOrder.setTotalAmount(request.getTotalAmount());
+    existingGuestOrder.setStatus(request.getStatus());
 
     // Persist or update the order
     existingGuestOrder.persist();

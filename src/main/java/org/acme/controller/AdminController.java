@@ -2,6 +2,7 @@ package org.acme.controller;
 
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
+import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.Cookie;
 import jakarta.ws.rs.core.MediaType;
@@ -11,6 +12,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 import org.acme.dto.MessageDto;
 import org.acme.dto.OrderDto;
+import org.acme.dto.UpdateOrderRequestDto;
 import org.acme.dto.UserDto;
 import org.acme.entity.Order;
 import org.acme.entity.Session;
@@ -247,7 +249,9 @@ public class AdminController {
   @Consumes(MediaType.APPLICATION_JSON)
   @Transactional
   public Response updateOrder(
-      @PathParam("id") Long id, @CookieParam("session") Cookie sessionCookie, Order updatedOrder) {
+      @PathParam("id") Long id,
+      @CookieParam("session") Cookie sessionCookie,
+      @Valid UpdateOrderRequestDto request) {
     Session session = SessionAuth.requireValidSession(sessionCookie);
     if (session == null) {
       return Response.status(Response.Status.UNAUTHORIZED).build();
@@ -266,8 +270,8 @@ public class AdminController {
     }
 
     // Check for user existence before updating
-    if (updatedOrder.getUser() != null && updatedOrder.getUser().id != null) {
-      User user = User.findById(updatedOrder.getUser().id);
+    if (request.getUserId() != null) {
+      User user = User.findById(request.getUserId());
       if (user == null) {
         return Response.status(Response.Status.NOT_FOUND)
             .entity(new MessageDto("User not found"))
@@ -277,9 +281,9 @@ public class AdminController {
     }
 
     // Update order fields
-    existingOrder.setOrderDate(updatedOrder.getOrderDate());
-    existingOrder.setTotalAmount(updatedOrder.getTotalAmount());
-    existingOrder.setStatus(updatedOrder.getStatus());
+    existingOrder.setOrderDate(request.getOrderDate());
+    existingOrder.setTotalAmount(request.getTotalAmount());
+    existingOrder.setStatus(request.getStatus());
     existingOrder.persist();
 
     logger.info("Order updated successfully for ID: {}", id);
