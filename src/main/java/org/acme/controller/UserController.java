@@ -111,9 +111,7 @@ public class UserController {
     if (user != null
         && user.getLockedUntil() != null
         && user.getLockedUntil().isAfter(Instant.now())) {
-      return Response.status(429)
-          .entity(new MessageDto("Too many failed login attempts. Try again later."))
-          .build();
+      throw new RateLimitExceededException("Too many failed login attempts. Try again later.");
     }
 
     // A deactivated account (admin-controlled) is separate from a temporary
