@@ -54,6 +54,14 @@ public class UserController {
   @ConfigProperty(name = "app.rate-limit.register.max-attempts")
   int registerMaxAttempts;
 
+  @Inject
+  @ConfigProperty(name = "app.rate-limit.password-reset-request.max-attempts")
+  int passwordResetRequestMaxAttempts;
+
+  @Inject
+  @ConfigProperty(name = "app.rate-limit.password-reset-confirm.max-attempts")
+  int passwordResetConfirmMaxAttempts;
+
   // Create a new User
   @POST
   @Path("/register")
@@ -293,7 +301,15 @@ public class UserController {
   @Path("/reset-password/request")
   @Consumes(MediaType.APPLICATION_JSON)
   @Transactional
-  public Response requestPasswordReset(@Valid PasswordResetRequestDto requestDto) {
+  public Response requestPasswordReset(
+      @Valid PasswordResetRequestDto requestDto, @Context HttpServerRequest request) {
+    // This rate limit is per IP address, not per user.
+    String ipAddress = request.remoteAddress().host();
+    if (!rateLimitService.allowRequest(
+        "password-reset-request", ipAddress, passwordResetRequestMaxAttempts)) {
+      throw new RateLimitExceededException("Too many password reset requests. Try again later.");
+    }
+
     logger.info("Resetting password for email: {}", requestDto.getEmail());
 
     // Find the user by email
@@ -326,7 +342,15 @@ public class UserController {
   @Path("/reset-password/confirm")
   @Consumes(MediaType.APPLICATION_JSON)
   @Transactional
-  public Response confirmPasswordReset(@Valid PasswordResetConfirmDto confirmDto) {
+  public Response confirmPasswordReset(
+      @Valid PasswordResetConfirmDto confirmDto, @Context HttpServerRequest request) {
+
+    // This rate limit is per IP address, not per user.
+    String ipAddress = request.remoteAddress().host();
+    if (!rateLimitService.allowRequest(
+        "password-reset-confirm", ipAddress, passwordResetConfirmMaxAttempts)) {
+      throw new RateLimitExceededException("Too many password reset attempts. Try again later.");
+    }
 
     PasswordResetToken resetToken = PasswordResetToken.findValid(confirmDto.getToken());
     if (resetToken == null) {
