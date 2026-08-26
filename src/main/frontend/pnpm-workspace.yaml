@@ -2,6 +2,7 @@ allowBuilds:
   bcrypt: true
   core-js: true
   core-js-pure: true
+  esbuild: true
 minimumReleaseAgeExclude:
   - nth-check@2.0.1
   - postcss@8.4.31
@@ -36,8 +37,3 @@ overrides:
   svgo@>=1.0.0 <2.8.3: ^2.8.3
   underscore@<=1.13.7: ^1.13.8
   uuid@<11.1.1: ^11.1.1
-  # webpack-dev-server is deliberately NOT forced to v5 here: it dropped the
-  # onBeforeSetupMiddleware/onAfterSetupMiddleware options that
-  # react-scripts@5.0.1 still calls internally, so v5 crashes `pnpm start`
-  # outright. These 6 moderate advisories stay unresolved until CRA is
-  # migrated away from, or react-scripts updates its webpack-dev-server usage.

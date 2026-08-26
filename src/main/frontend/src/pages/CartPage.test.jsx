@@ -28,7 +28,7 @@ const cartItem = {
 // the /api/users/me mock - CartPage's own logic branches on whether a user is
 // present, so "not logged in" is the more interesting default to exercise.
 function mockFetchNotLoggedIn() {
-    global.fetch = jest.fn((url) => {
+    global.fetch = vi.fn((url) => {
         if (url.includes('/api/users/me')) {
             return Promise.resolve({ ok: false });
         }
@@ -43,7 +43,7 @@ describe('CartPage', () => {
     });
 
     afterEach(() => {
-        jest.restoreAllMocks();
+        vi.restoreAllMocks();
     });
 
     test('shows the empty-cart message when there are no items', async () => {
@@ -105,7 +105,7 @@ describe('CartPage', () => {
     test('checkout succeeds: clears the cart and redirects to the returned checkoutUrl', async () => {
         localStorage.setItem('cart', JSON.stringify([cartItem]));
 
-        global.fetch = jest.fn((url) => {
+        global.fetch = vi.fn((url) => {
             if (url.includes('/api/users/me')) {
                 return Promise.resolve({ ok: false });
             }
@@ -148,7 +148,7 @@ describe('CartPage', () => {
     test('checkout failure shows the server error message and keeps the cart intact', async () => {
         localStorage.setItem('cart', JSON.stringify([cartItem]));
 
-        global.fetch = jest.fn((url) => {
+        global.fetch = vi.fn((url) => {
             if (url.includes('/api/users/me')) {
                 return Promise.resolve({ ok: false });
             }
