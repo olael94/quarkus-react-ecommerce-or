@@ -1,6 +1,6 @@
 package org.acme.dto;
 
-public class OrderItemRequest {
+public class OrderItemRequestDto {
   private Long productId;
   private Integer quantity;
 

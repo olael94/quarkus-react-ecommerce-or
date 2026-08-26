@@ -3,10 +3,10 @@ package org.acme.dto;
 import java.util.List;
 
 /** Replaces the raw order request where the client sends what they want */
-public class CreateOrderRequest {
+public class CreateOrderRequestDto {
   private Long userId;
   private String guestEmail;
-  private List<OrderItemRequest> items;
+  private List<OrderItemRequestDto> items;
 
   // Getters
   public Long getUserId() {
@@ -17,7 +17,7 @@ public class CreateOrderRequest {
     return guestEmail;
   }
 
-  public List<OrderItemRequest> getItems() {
+  public List<OrderItemRequestDto> getItems() {
     return items;
   }
 
@@ -30,7 +30,7 @@ public class CreateOrderRequest {
     this.guestEmail = guestEmail;
   }
 
-  public void setItems(List<OrderItemRequest> items) {
+  public void setItems(List<OrderItemRequestDto> items) {
     this.items = items;
   }
 }

@@ -10,9 +10,9 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import org.acme.dto.CheckoutResponseDto;
-import org.acme.dto.CreateOrderRequest;
+import org.acme.dto.CreateOrderRequestDto;
 import org.acme.dto.MessageDto;
-import org.acme.dto.OrderItemRequest;
+import org.acme.dto.OrderItemRequestDto;
 import org.acme.entity.Order;
 import org.acme.entity.OrderItem;
 import org.acme.entity.Product;
@@ -49,7 +49,7 @@ public class OrderController {
   // Create a new order (guest or user)
   @POST
   @Transactional
-  public Response createOrder(CreateOrderRequest request) {
+  public Response createOrder(CreateOrderRequestDto request) {
     logger.info("Received request to create an order");
 
     if (request.getItems() == null || request.getItems().isEmpty()) {
@@ -70,7 +70,7 @@ public class OrderController {
     List<OrderItem> newItems = new ArrayList<>();
 
     // Create the order
-    for (OrderItemRequest itemRequest : request.getItems()) {
+    for (OrderItemRequestDto itemRequest : request.getItems()) {
       if (itemRequest.getProductId() == null) {
         logger.warn("Each item must specify a productId");
         throw badRequest("Each item must specify a productId");
