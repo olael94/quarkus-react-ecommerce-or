@@ -7,6 +7,7 @@ import io.quarkus.mailer.Mail;
 import io.quarkus.mailer.Mailer;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
+import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.Cookie;
 import jakarta.ws.rs.core.MediaType;
@@ -52,17 +53,8 @@ public class UserController {
   @Path("/register")
   @Consumes(MediaType.APPLICATION_JSON)
   @Transactional
-  public Response createUser(RegisterDto registerDto) {
+  public Response createUser(@Valid RegisterDto registerDto) {
     logger.info("Creating user: {}", registerDto.getUsername());
-
-    // Check if username, email, or password is empty
-    if ((registerDto.getUsername() == null || registerDto.getUsername().isEmpty())
-        || (registerDto.getEmail() == null || registerDto.getEmail().isEmpty())
-        || (registerDto.getPassword() == null || registerDto.getPassword().isEmpty())) {
-      return Response.status(Response.Status.BAD_REQUEST)
-          .entity(new MessageDto("Username, email, and password are required"))
-          .build();
-    }
 
     // Check if a user with the same email already exists
     User existingUser = User.find("email", registerDto.getEmail()).firstResult();
@@ -91,16 +83,8 @@ public class UserController {
   @Path("/login")
   @Consumes(MediaType.APPLICATION_JSON)
   @Transactional
-  public Response loginUser(LoginDto loginDto) {
+  public Response loginUser(@Valid LoginDto loginDto) {
     logger.info("Logging in user: {}", loginDto.getEmail());
-
-    // Check if email or password is empty
-    if ((loginDto.getEmail() == null || loginDto.getEmail().isEmpty())
-        || (loginDto.getPassword() == null || loginDto.getPassword().isEmpty())) {
-      return Response.status(Response.Status.BAD_REQUEST)
-          .entity(new MessageDto("Email and password are required"))
-          .build();
-    }
 
     // Find the user by email
     User user = User.find("email", loginDto.getEmail()).firstResult();
