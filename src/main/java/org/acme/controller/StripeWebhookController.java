@@ -34,7 +34,8 @@ public class StripeWebhookController {
 
   @Inject Mailer mailer;
 
-  // Stripe sends a POST request to this endpoint with the raw JSON payload and the Stripe-Signature header
+  // Stripe sends a POST request to this endpoint with the raw JSON payload and the Stripe-Signature
+  // header
   @POST
   @Transactional
   public Response receiveWebhook(String payload, @Context HttpHeaders httpHeaders) {
