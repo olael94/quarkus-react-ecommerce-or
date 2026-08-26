@@ -215,7 +215,7 @@ public class UserController {
   @Consumes(MediaType.APPLICATION_JSON)
   @Transactional
   public Response updateCurrentUser(
-      @CookieParam("session") Cookie sessionCookie, UpdateUserDto updateDto) {
+      @CookieParam("session") Cookie sessionCookie, @Valid UpdateUserDto updateDto) {
     Session session = SessionAuth.requireValidSession(sessionCookie);
     if (session == null) {
       return Response.status(Response.Status.UNAUTHORIZED).build();
@@ -244,20 +244,10 @@ public class UserController {
   @Consumes(MediaType.APPLICATION_JSON)
   @Transactional
   public Response changePassword(
-      @CookieParam("session") Cookie sessionCookie, ChangePasswordDto changeDto) {
+      @CookieParam("session") Cookie sessionCookie, @Valid ChangePasswordDto changeDto) {
     Session session = SessionAuth.requireValidSession(sessionCookie);
     if (session == null) {
       return Response.status(Response.Status.UNAUTHORIZED).build();
-    }
-
-    // Validate the input DTO
-    if (changeDto.getCurrentPassword() == null
-        || changeDto.getCurrentPassword().isEmpty()
-        || changeDto.getNewPassword() == null
-        || changeDto.getNewPassword().isEmpty()) {
-      return Response.status(Response.Status.BAD_REQUEST)
-          .entity(new MessageDto("Current password and new password are required"))
-          .build();
     }
 
     // Get the user associated with the session
@@ -292,15 +282,8 @@ public class UserController {
   @Path("/reset-password/request")
   @Consumes(MediaType.APPLICATION_JSON)
   @Transactional
-  public Response requestPasswordReset(PasswordResetRequestDto requestDto) {
+  public Response requestPasswordReset(@Valid PasswordResetRequestDto requestDto) {
     logger.info("Resetting password for email: {}", requestDto.getEmail());
-
-    // Check if email is empty
-    if (requestDto.getEmail() == null || requestDto.getEmail().isEmpty()) {
-      return Response.status(Response.Status.BAD_REQUEST)
-          .entity(new MessageDto("Email is required"))
-          .build();
-    }
 
     // Find the user by email
     User user = User.find("email", requestDto.getEmail()).firstResult();
@@ -332,15 +315,7 @@ public class UserController {
   @Path("/reset-password/confirm")
   @Consumes(MediaType.APPLICATION_JSON)
   @Transactional
-  public Response confirmPasswordReset(PasswordResetConfirmDto confirmDto) {
-    if (confirmDto.getToken() == null
-        || confirmDto.getToken().isEmpty()
-        || confirmDto.getNewPassword() == null
-        || confirmDto.getNewPassword().isEmpty()) {
-      return Response.status(Response.Status.BAD_REQUEST)
-          .entity(new MessageDto("Token and new password are required"))
-          .build();
-    }
+  public Response confirmPasswordReset(@Valid PasswordResetConfirmDto confirmDto) {
 
     PasswordResetToken resetToken = PasswordResetToken.findValid(confirmDto.getToken());
     if (resetToken == null) {
