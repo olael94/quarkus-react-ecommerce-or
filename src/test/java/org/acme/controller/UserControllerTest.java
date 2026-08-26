@@ -309,6 +309,27 @@ class UserControllerTest {
     }
 
     @Test
+    void updateCurrentUser_invalidEmailFormat_returns400() {
+      AuthenticatedUser user = TestAuthHelper.registerAndLogin();
+
+      given()
+          .cookie("session", user.sessionCookie())
+          .header("X-CSRF-Token", user.csrfToken())
+          .contentType("application/json")
+          .body("{\"email\":\"not-an-email\"}")
+          .put("/api/users/me")
+          .then()
+          .statusCode(400);
+
+      // The rejected update must not have gone through.
+      given()
+          .cookie("session", user.sessionCookie())
+          .get("/api/users/me")
+          .then()
+          .body("email", equalTo(user.email()));
+    }
+
+    @Test
     void updateCurrentUser_noSession_returns401() {
       given()
           .contentType("application/json")
@@ -350,6 +371,23 @@ class UserControllerTest {
 
       TestAuthHelper.login(user.email(), user.password()).then().statusCode(401);
       TestAuthHelper.login(user.email(), "brandnewpass789").then().statusCode(200);
+    }
+
+    @Test
+    void changePassword_newPasswordTooShort_returns400() {
+      AuthenticatedUser user = TestAuthHelper.registerAndLogin();
+
+      given()
+          .cookie("session", user.sessionCookie())
+          .header("X-CSRF-Token", user.csrfToken())
+          .contentType("application/json")
+          .body("{\"currentPassword\":\"" + user.password() + "\",\"newPassword\":\"short1\"}")
+          .post("/api/users/me/change-password")
+          .then()
+          .statusCode(400);
+
+      // The rejected change must not have gone through.
+      TestAuthHelper.login(user.email(), user.password()).then().statusCode(200);
     }
 
     @Test
@@ -443,6 +481,16 @@ class UserControllerTest {
     }
 
     @Test
+    void requestReset_invalidEmailFormat_returns400() {
+      given()
+          .contentType("application/json")
+          .body("{\"email\":\"not-an-email\"}")
+          .post("/api/users/reset-password/request")
+          .then()
+          .statusCode(400);
+    }
+
+    @Test
     void validateToken_missing_returns400() {
       given().get("/api/users/reset-password/validate").then().statusCode(400);
     }
@@ -486,6 +534,19 @@ class UserControllerTest {
 
       TestAuthHelper.login(email, TestAuthHelper.PASSWORD).then().statusCode(401);
       TestAuthHelper.login(email, "resetpassword111").then().statusCode(200);
+    }
+
+    @Test
+    void confirmReset_newPasswordTooShort_returns400() {
+      String email = TestAuthHelper.uniqueEmail();
+      TestAuthHelper.register(email, TestAuthHelper.PASSWORD).then().statusCode(201);
+      requestReset(email);
+      String token = TestAuthHelper.getLatestResetTokenFor(email);
+
+      confirmReset(token, "short1", 400);
+
+      // The rejected confirm must not have consumed the token.
+      confirmReset(token, "longenoughpass777", 200);
     }
 
     @Test
