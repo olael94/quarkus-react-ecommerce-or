@@ -5,21 +5,21 @@ import static io.quarkus.hibernate.orm.panache.PanacheEntity_.id;
 import io.quarkus.hibernate.orm.panache.Panache;
 import io.quarkus.mailer.Mail;
 import io.quarkus.mailer.Mailer;
+import io.vertx.core.http.HttpServerRequest;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
-import jakarta.ws.rs.core.Cookie;
-import jakarta.ws.rs.core.MediaType;
-import jakarta.ws.rs.core.NewCookie;
-import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.core.*;
 import java.time.Duration;
 import java.time.Instant;
 import org.acme.dto.*;
 import org.acme.entity.PasswordResetToken;
 import org.acme.entity.Session;
 import org.acme.entity.User;
+import org.acme.exception.RateLimitExceededException;
 import org.acme.service.PasswordResetService;
+import org.acme.service.RateLimitService;
 import org.acme.util.CookieBuilder;
 import org.acme.util.SessionAuth;
 import org.acme.util.TokenGenerator;
@@ -48,12 +48,23 @@ public class UserController {
 
   @Inject PasswordResetService passwordResetService;
 
+  @Inject RateLimitService rateLimitService;
+
+  @Inject
+  @ConfigProperty(name = "app.rate-limit.register.max-attempts")
+  int registerMaxAttempts;
+
   // Create a new User
   @POST
   @Path("/register")
   @Consumes(MediaType.APPLICATION_JSON)
   @Transactional
-  public Response createUser(@Valid RegisterDto registerDto) {
+  public Response createUser(@Valid RegisterDto registerDto, @Context HttpServerRequest request) {
+    String ipAddress = request.remoteAddress().host();
+    if (!rateLimitService.allowRequest("register", ipAddress, registerMaxAttempts)) {
+      throw new RateLimitExceededException("Too many registration attempts. Try again later.");
+    }
+
     logger.info("Creating user: {}", registerDto.getUsername());
 
     // Check if a user with the same email already exists
