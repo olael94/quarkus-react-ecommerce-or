@@ -43,6 +43,33 @@ class UserControllerTest {
     }
 
     @Test
+    void register_invalidEmailFormat_returns400() {
+      given()
+          .contentType("application/json")
+          .body(
+              "{\"username\":\"testuser\",\"email\":\"not-an-email\",\"password\":\""
+                  + TestAuthHelper.PASSWORD
+                  + "\"}")
+          .post("/api/users/register")
+          .then()
+          .statusCode(400)
+          .body("message", notNullValue());
+    }
+
+    @Test
+    void register_passwordTooShort_returns400() {
+      String email = TestAuthHelper.uniqueEmail();
+
+      given()
+          .contentType("application/json")
+          .body("{\"username\":\"testuser\",\"email\":\"" + email + "\",\"password\":\"short1\"}")
+          .post("/api/users/register")
+          .then()
+          .statusCode(400)
+          .body("message", notNullValue());
+    }
+
+    @Test
     void register_duplicateEmail_returns409() {
       String email = TestAuthHelper.uniqueEmail();
       TestAuthHelper.register(email, TestAuthHelper.PASSWORD).then().statusCode(201);
@@ -115,6 +142,19 @@ class UserControllerTest {
           .post("/api/users/login")
           .then()
           .statusCode(400);
+    }
+
+    @Test
+    void login_whitespaceOnlyEmail_returns400() {
+      // @NotBlank rejects whitespace-only strings, not just null/empty - the
+      // old manual check this replaced only ever tested .isEmpty().
+      given()
+          .contentType("application/json")
+          .body("{\"email\":\"   \",\"password\":\"" + TestAuthHelper.PASSWORD + "\"}")
+          .post("/api/users/login")
+          .then()
+          .statusCode(400)
+          .body("message", notNullValue());
     }
 
     @Test
