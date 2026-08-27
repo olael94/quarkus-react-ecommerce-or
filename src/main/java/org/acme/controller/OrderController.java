@@ -1,6 +1,7 @@
 package org.acme.controller;
 
 import com.stripe.exception.StripeException;
+import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
@@ -36,6 +37,7 @@ public class OrderController {
   private static final Logger logger = LoggerFactory.getLogger(OrderController.class);
 
   @Inject StripeCheckoutService stripeCheckoutService;
+  @Inject MeterRegistry registry;
 
   // Helper method to return a WebApplicationException with a 400 Bad Request status code and the
   // provided message.
@@ -146,6 +148,9 @@ public class OrderController {
     }
 
     logger.info("Order {} created, checkout session started", order.id);
+
+    // Increment the counter for orders.created
+    registry.counter("orders.created").increment();
 
     return Response.status(Response.Status.CREATED)
         .entity(new CheckoutResponseDto(checkoutUrl))

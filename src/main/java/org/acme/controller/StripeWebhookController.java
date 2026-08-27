@@ -7,6 +7,7 @@ import com.stripe.model.EventDataObjectDeserializer;
 import com.stripe.model.StripeObject;
 import com.stripe.model.checkout.Session;
 import com.stripe.net.Webhook;
+import io.micrometer.core.instrument.MeterRegistry;
 import io.quarkus.mailer.Mail;
 import io.quarkus.mailer.Mailer;
 import jakarta.inject.Inject;
@@ -35,6 +36,8 @@ public class StripeWebhookController {
   // Re-serializing a parsed object could change whitespace and break signature verification.
 
   @Inject Mailer mailer;
+
+  @Inject MeterRegistry registry;
 
   // Stripe sends a POST request to this endpoint with the raw JSON payload and the Stripe-Signature
   // header
@@ -102,6 +105,7 @@ public class StripeWebhookController {
 
     order.setStatus(Order.Status.COMPLETED);
     logger.info("Order {} marked COMPLETED via Stripe webhook", orderId);
+    registry.counter("checkout.completed").increment();
     sendOrderConfirmationEmail(order);
   }
 
