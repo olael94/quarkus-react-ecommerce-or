@@ -101,6 +101,11 @@
             <artifactId>stripe-java</artifactId>
             <version>29.2.0</version>
         </dependency>
+        <!-- Used to implement microProfile Health checks -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-smallrye-health</artifactId>
+        </dependency>
     </dependencies>
 
     <build>
