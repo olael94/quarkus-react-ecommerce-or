@@ -18,6 +18,12 @@ import org.acme.entity.Session;
 import org.acme.entity.User;
 import org.acme.service.StripeCheckoutService;
 import org.acme.util.SessionAuth;
+import org.eclipse.microprofile.openapi.annotations.Operation;
+import org.eclipse.microprofile.openapi.annotations.enums.ParameterIn;
+import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
+import org.eclipse.microprofile.openapi.annotations.media.Schema;
+import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
+import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -47,6 +53,21 @@ public class OrderController {
   // Create a new order (guest or user)
   @POST
   @Transactional
+  @Operation(
+      summary = "Create an order and start checkout",
+      description =
+          "Takes a userId (or none, for a guest order), optional guestEmail, and a list "
+              + "of {productId, quantity} line items. The total is always computed server-side "
+              + "from the current Product price - it cannot be set by the client. Stock is "
+              + "decremented atomically per item, so this fails (with any earlier items in the "
+              + "same request rolled back) if any item is oversold. On success, does not return "
+              + "a finished order - it returns a Stripe Checkout session URL to redirect the "
+              + "buyer to; the order stays PENDING until Stripe's webhook confirms payment.")
+  @APIResponse(responseCode = "201", description = "Order created, Stripe checkoutUrl returned")
+  @APIResponse(
+      responseCode = "400",
+      description = "Unknown user/product ID, or insufficient stock for an item")
+  @APIResponse(responseCode = "502", description = "Stripe checkout session creation failed")
   public Response createOrder(@Valid CreateOrderRequestDto request) {
     logger.info("Received request to create an order");
 
@@ -134,7 +155,26 @@ public class OrderController {
   // Get a specific USER order by ID
   @GET
   @Path("{id}")
-  public Response getOrder(@PathParam("id") Long id, @CookieParam("session") Cookie sessionCookie) {
+  @Operation(
+      summary = "Get an order by ID",
+      description = "Allowed for the order's owner, or a caller with ADMIN or SUPPORT role.")
+  @APIResponse(responseCode = "200", description = "Order found")
+  @APIResponse(responseCode = "401", description = "No valid session")
+  @APIResponse(responseCode = "403", description = "Session is neither the owner nor staff")
+  @APIResponse(responseCode = "404", description = "No order with that ID")
+  public Response getOrder(
+      @PathParam("id") Long id,
+      @Parameter(
+              name = "session",
+              in = ParameterIn.COOKIE,
+              description =
+                  "Session token set by POST /api/users/login. Sent automatically by the "
+                      + "browser once logged in - leave this field blank in Try it out; the "
+                      + "browser blocks JavaScript from overriding the real Cookie header, so "
+                      + "typing a value here has no effect.",
+              schema = @Schema(type = SchemaType.STRING))
+          @CookieParam("session")
+          Cookie sessionCookie) {
     logger.info("Fetching order for ID: {}", id);
 
     Session session = SessionAuth.requireValidSession(sessionCookie);
@@ -175,6 +215,13 @@ public class OrderController {
   @PUT
   @Path("{guestTrackingId}")
   @Transactional
+  @Operation(
+      summary = "Update a guest order",
+      description =
+          "No authentication beyond knowing the guestTrackingId itself - anyone holding "
+              + "that value can update the order.")
+  @APIResponse(responseCode = "200", description = "Order updated")
+  @APIResponse(responseCode = "404", description = "No guest order with that tracking ID")
   public Response updateGuestOrder(
       @PathParam("guestTrackingId") String guestTrackingId,
       @Valid UpdateGuestOrderRequestDto request) {
@@ -210,6 +257,13 @@ public class OrderController {
   @DELETE
   @Path("{guestTrackingId}")
   @Transactional
+  @Operation(
+      summary = "Delete a guest order",
+      description =
+          "No authentication beyond knowing the guestTrackingId itself - anyone holding "
+              + "that value can delete the order.")
+  @APIResponse(responseCode = "200", description = "Order deleted")
+  @APIResponse(responseCode = "404", description = "No guest order with that tracking ID")
   public Response deleteGuestOrder(@PathParam("guestTrackingId") String guestTrackingId) {
     logger.info("Deleting guest order with tracking ID: {}", guestTrackingId);
 

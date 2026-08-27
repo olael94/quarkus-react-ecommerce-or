@@ -13,6 +13,12 @@ import org.acme.entity.Product;
 import org.acme.entity.Session;
 import org.acme.entity.User;
 import org.acme.util.SessionAuth;
+import org.eclipse.microprofile.openapi.annotations.Operation;
+import org.eclipse.microprofile.openapi.annotations.enums.ParameterIn;
+import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
+import org.eclipse.microprofile.openapi.annotations.media.Schema;
+import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
+import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -26,8 +32,27 @@ public class ProductController {
   // Create a new product
   @POST
   @Transactional
+  @Operation(
+      summary = "Create a product",
+      description =
+          "Requires VENDOR or ADMIN role. The owner is always set to the caller - it "
+              + "cannot be set via the request body.")
+  @APIResponse(responseCode = "201", description = "Product created")
+  @APIResponse(responseCode = "401", description = "No valid session")
+  @APIResponse(responseCode = "403", description = "Session lacks VENDOR or ADMIN role")
   public Response createProduct(
-      @Valid CreateProductRequestDto request, @CookieParam("session") Cookie sessionCookie) {
+      @Valid CreateProductRequestDto request,
+      @Parameter(
+              name = "session",
+              in = ParameterIn.COOKIE,
+              description =
+                  "Session token set by POST /api/users/login. Sent automatically by the "
+                      + "browser once logged in - leave this field blank in Try it out; the "
+                      + "browser blocks JavaScript from overriding the real Cookie header, so "
+                      + "typing a value here has no effect.",
+              schema = @Schema(type = SchemaType.STRING))
+          @CookieParam("session")
+          Cookie sessionCookie) {
 
     Session session = SessionAuth.requireValidSession(sessionCookie);
     if (session == null) {
@@ -59,6 +84,10 @@ public class ProductController {
   // Get all products in the database.
   // Returns a lightweight summary (no description) to keep list responses small.
   @GET
+  @Operation(
+      summary = "List all products",
+      description = "Public - no authentication needed. Returns a lightweight summary per product.")
+  @APIResponse(responseCode = "200", description = "All products returned")
   public List<ProductSummaryDto> getAllProducts() {
     logger.info("Fetching all products");
     List<Product> products = Product.listAll();
@@ -68,6 +97,9 @@ public class ProductController {
   // Get a product by ID
   @GET
   @Path("{id}")
+  @Operation(summary = "Get a product by ID", description = "Public - no authentication needed.")
+  @APIResponse(responseCode = "200", description = "Product found")
+  @APIResponse(responseCode = "404", description = "No product with that ID")
   public Response getProduct(@PathParam("id") Long id) {
     Product product = Product.findById(id);
     if (product == null) {
@@ -84,10 +116,27 @@ public class ProductController {
   @PUT
   @Path("{id}")
   @Transactional
+  @Operation(
+      summary = "Update a product",
+      description = "Allowed for the product's owner, or a caller with ADMIN role.")
+  @APIResponse(responseCode = "200", description = "Product updated")
+  @APIResponse(responseCode = "401", description = "No valid session")
+  @APIResponse(responseCode = "403", description = "Session is neither the owner nor an admin")
+  @APIResponse(responseCode = "404", description = "No product with that ID")
   public Response updateProduct(
       @PathParam("id") Long id,
       @Valid UpdateProductRequestDto request,
-      @CookieParam("session") Cookie sessionCookie) {
+      @Parameter(
+              name = "session",
+              in = ParameterIn.COOKIE,
+              description =
+                  "Session token set by POST /api/users/login. Sent automatically by the "
+                      + "browser once logged in - leave this field blank in Try it out; the "
+                      + "browser blocks JavaScript from overriding the real Cookie header, so "
+                      + "typing a value here has no effect.",
+              schema = @Schema(type = SchemaType.STRING))
+          @CookieParam("session")
+          Cookie sessionCookie) {
     Session session = SessionAuth.requireValidSession(sessionCookie);
     if (session == null) {
       return Response.status(Response.Status.UNAUTHORIZED).build();
@@ -130,8 +179,26 @@ public class ProductController {
   @DELETE
   @Path("{id}")
   @Transactional
+  @Operation(
+      summary = "Delete a product",
+      description = "Allowed for the product's owner, or a caller with ADMIN role.")
+  @APIResponse(responseCode = "200", description = "Product deleted")
+  @APIResponse(responseCode = "401", description = "No valid session")
+  @APIResponse(responseCode = "403", description = "Session is neither the owner nor an admin")
+  @APIResponse(responseCode = "404", description = "No product with that ID")
   public Response deleteProduct(
-      @PathParam("id") Long id, @CookieParam("session") Cookie sessionCookie) {
+      @PathParam("id") Long id,
+      @Parameter(
+              name = "session",
+              in = ParameterIn.COOKIE,
+              description =
+                  "Session token set by POST /api/users/login. Sent automatically by the "
+                      + "browser once logged in - leave this field blank in Try it out; the "
+                      + "browser blocks JavaScript from overriding the real Cookie header, so "
+                      + "typing a value here has no effect.",
+              schema = @Schema(type = SchemaType.STRING))
+          @CookieParam("session")
+          Cookie sessionCookie) {
     Session session = SessionAuth.requireValidSession(sessionCookie);
     if (session == null) {
       return Response.status(Response.Status.UNAUTHORIZED).build();

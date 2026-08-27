@@ -24,6 +24,12 @@ import org.acme.util.CookieBuilder;
 import org.acme.util.SessionAuth;
 import org.acme.util.TokenGenerator;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.eclipse.microprofile.openapi.annotations.Operation;
+import org.eclipse.microprofile.openapi.annotations.enums.ParameterIn;
+import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
+import org.eclipse.microprofile.openapi.annotations.media.Schema;
+import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
+import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -67,6 +73,12 @@ public class UserController {
   @Path("/register")
   @Consumes(MediaType.APPLICATION_JSON)
   @Transactional
+  @Operation(
+      summary = "Register a new user",
+      description = "New accounts are always created with the CUSTOMER role.")
+  @APIResponse(responseCode = "201", description = "User created")
+  @APIResponse(responseCode = "409", description = "Email already in use")
+  @APIResponse(responseCode = "429", description = "Too many registration attempts from this IP")
   public Response createUser(@Valid RegisterDto registerDto, @Context HttpServerRequest request) {
     String ipAddress = request.remoteAddress().host();
     if (!rateLimitService.allowRequest("register", ipAddress, registerMaxAttempts)) {
@@ -102,6 +114,15 @@ public class UserController {
   @Path("/login")
   @Consumes(MediaType.APPLICATION_JSON)
   @Transactional
+  @Operation(
+      summary = "Log in",
+      description =
+          "On success, sets the session and csrf_token cookies used to authenticate "
+              + "every other endpoint. Locks the account for 15 minutes after 5 failed attempts.")
+  @APIResponse(responseCode = "200", description = "Logged in, cookies set")
+  @APIResponse(
+      responseCode = "401",
+      description = "Wrong email/password, account locked out, or account deactivated")
   public Response loginUser(@Valid LoginDto loginDto) {
     logger.info("Logging in user: {}", loginDto.getEmail());
 
@@ -186,7 +207,22 @@ public class UserController {
   @POST
   @Path("/logout")
   @Transactional
-  public Response logoutUser(@CookieParam("session") Cookie sessionCookie) {
+  @Operation(
+      summary = "Log out",
+      description = "Always succeeds, even with no session cookie. Clears both auth cookies.")
+  @APIResponse(responseCode = "200", description = "Logged out, cookies cleared")
+  public Response logoutUser(
+      @Parameter(
+              name = "session",
+              in = ParameterIn.COOKIE,
+              description =
+                  "Session token set by POST /api/users/login. Sent automatically by the "
+                      + "browser once logged in - leave this field blank in Try it out; the "
+                      + "browser blocks JavaScript from overriding the real Cookie header, so "
+                      + "typing a value here has no effect.",
+              schema = @Schema(type = SchemaType.STRING))
+          @CookieParam("session")
+          Cookie sessionCookie) {
     // If the user is logged in, delete the session token from the database.
     if (sessionCookie != null) {
       Session.delete("token", sessionCookie.getValue());
@@ -201,7 +237,21 @@ public class UserController {
 
   @GET
   @Path("/me")
-  public Response me(@CookieParam("session") Cookie sessionCookie) {
+  @Operation(summary = "Get the current user", description = "Returns the caller's own account.")
+  @APIResponse(responseCode = "200", description = "Current user returned")
+  @APIResponse(responseCode = "401", description = "No valid session")
+  public Response me(
+      @Parameter(
+              name = "session",
+              in = ParameterIn.COOKIE,
+              description =
+                  "Session token set by POST /api/users/login. Sent automatically by the "
+                      + "browser once logged in - leave this field blank in Try it out; the "
+                      + "browser blocks JavaScript from overriding the real Cookie header, so "
+                      + "typing a value here has no effect.",
+              schema = @Schema(type = SchemaType.STRING))
+          @CookieParam("session")
+          Cookie sessionCookie) {
     Session session = SessionAuth.requireValidSession(sessionCookie);
     if (session == null) {
       return Response.status(Response.Status.UNAUTHORIZED).build();
@@ -212,7 +262,29 @@ public class UserController {
   // Get a user by ID
   @GET
   @Path("{id}")
-  public Response getUser(@PathParam("id") Long id, @CookieParam("session") Cookie sessionCookie) {
+  @Operation(
+      summary = "Get a user by ID",
+      description =
+          "Returns the user only if the path ID matches the authenticated session's own "
+              + "user - this is a self-only check, not owner-or-admin.")
+  @APIResponse(responseCode = "200", description = "User found and returned")
+  @APIResponse(responseCode = "401", description = "No valid session")
+  @APIResponse(
+      responseCode = "403",
+      description = "Session belongs to a different user than the requested ID")
+  public Response getUser(
+      @PathParam("id") Long id,
+      @Parameter(
+              name = "session",
+              in = ParameterIn.COOKIE,
+              description =
+                  "Session token set by POST /api/users/login. Sent automatically by the "
+                      + "browser once logged in - leave this field blank in Try it out; the "
+                      + "browser blocks JavaScript from overriding the real Cookie header, so "
+                      + "typing a value here has no effect.",
+              schema = @Schema(type = SchemaType.STRING))
+          @CookieParam("session")
+          Cookie sessionCookie) {
     Session session = SessionAuth.requireValidSession(sessionCookie);
     if (session == null) {
       return Response.status(Response.Status.UNAUTHORIZED).build();
@@ -231,8 +303,24 @@ public class UserController {
   @Path("/me")
   @Consumes(MediaType.APPLICATION_JSON)
   @Transactional
+  @Operation(
+      summary = "Update the current user's profile",
+      description = "Updates username and/or email for the caller's own account.")
+  @APIResponse(responseCode = "200", description = "Profile updated")
+  @APIResponse(responseCode = "401", description = "No valid session")
   public Response updateCurrentUser(
-      @CookieParam("session") Cookie sessionCookie, @Valid UpdateUserDto updateDto) {
+      @Parameter(
+              name = "session",
+              in = ParameterIn.COOKIE,
+              description =
+                  "Session token set by POST /api/users/login. Sent automatically by the "
+                      + "browser once logged in - leave this field blank in Try it out; the "
+                      + "browser blocks JavaScript from overriding the real Cookie header, so "
+                      + "typing a value here has no effect.",
+              schema = @Schema(type = SchemaType.STRING))
+          @CookieParam("session")
+          Cookie sessionCookie,
+      @Valid UpdateUserDto updateDto) {
     Session session = SessionAuth.requireValidSession(sessionCookie);
     if (session == null) {
       return Response.status(Response.Status.UNAUTHORIZED).build();
@@ -260,8 +348,26 @@ public class UserController {
   @Path("/me/change-password")
   @Consumes(MediaType.APPLICATION_JSON)
   @Transactional
+  @Operation(
+      summary = "Change the current user's password",
+      description =
+          "Requires the current password. Invalidates every other active session for "
+              + "this user, and emails a notification.")
+  @APIResponse(responseCode = "200", description = "Password changed")
+  @APIResponse(responseCode = "401", description = "No valid session, or current password is wrong")
   public Response changePassword(
-      @CookieParam("session") Cookie sessionCookie, @Valid ChangePasswordDto changeDto) {
+      @Parameter(
+              name = "session",
+              in = ParameterIn.COOKIE,
+              description =
+                  "Session token set by POST /api/users/login. Sent automatically by the "
+                      + "browser once logged in - leave this field blank in Try it out; the "
+                      + "browser blocks JavaScript from overriding the real Cookie header, so "
+                      + "typing a value here has no effect.",
+              schema = @Schema(type = SchemaType.STRING))
+          @CookieParam("session")
+          Cookie sessionCookie,
+      @Valid ChangePasswordDto changeDto) {
     Session session = SessionAuth.requireValidSession(sessionCookie);
     if (session == null) {
       return Response.status(Response.Status.UNAUTHORIZED).build();
@@ -299,6 +405,13 @@ public class UserController {
   @Path("/reset-password/request")
   @Consumes(MediaType.APPLICATION_JSON)
   @Transactional
+  @Operation(
+      summary = "Request a password reset email",
+      description =
+          "Always returns the same response regardless of whether the email is "
+              + "registered, so this endpoint can't be used to enumerate accounts.")
+  @APIResponse(responseCode = "200", description = "Generic confirmation message")
+  @APIResponse(responseCode = "429", description = "Too many requests from this IP")
   public Response requestPasswordReset(
       @Valid PasswordResetRequestDto requestDto, @Context HttpServerRequest request) {
     // This rate limit is per IP address, not per user.
@@ -326,6 +439,12 @@ public class UserController {
   // before they fill out and submit the form.
   @GET
   @Path("/reset-password/validate")
+  @Operation(
+      summary = "Check whether a password reset token is still valid",
+      description = "Read-only - doesn't consume the token.")
+  @APIResponse(responseCode = "200", description = "Token is valid")
+  @APIResponse(responseCode = "400", description = "Token missing")
+  @APIResponse(responseCode = "401", description = "Token invalid, expired, or already used")
   public Response validateResetToken(@QueryParam("token") String token) {
     if (token == null || token.isEmpty()) {
       return Response.status(Response.Status.BAD_REQUEST).build();
@@ -340,6 +459,14 @@ public class UserController {
   @Path("/reset-password/confirm")
   @Consumes(MediaType.APPLICATION_JSON)
   @Transactional
+  @Operation(
+      summary = "Confirm a password reset",
+      description =
+          "Consumes the token and invalidates every existing session for the user - if "
+              + "the password needed resetting, any session an attacker already holds should die.")
+  @APIResponse(responseCode = "200", description = "Password reset")
+  @APIResponse(responseCode = "401", description = "Token invalid, expired, or already used")
+  @APIResponse(responseCode = "429", description = "Too many attempts from this IP")
   public Response confirmPasswordReset(
       @Valid PasswordResetConfirmDto confirmDto, @Context HttpServerRequest request) {
 
@@ -373,7 +500,24 @@ public class UserController {
   @DELETE
   @Path("/me")
   @Transactional
-  public Response deleteCurrentUser(@CookieParam("session") Cookie sessionCookie) {
+  @Operation(
+      summary = "Delete the current user's own account",
+      description =
+          "Permanently deletes the caller's account, sessions, and password reset tokens.")
+  @APIResponse(responseCode = "200", description = "Account deleted")
+  @APIResponse(responseCode = "401", description = "No valid session")
+  public Response deleteCurrentUser(
+      @Parameter(
+              name = "session",
+              in = ParameterIn.COOKIE,
+              description =
+                  "Session token set by POST /api/users/login. Sent automatically by the "
+                      + "browser once logged in - leave this field blank in Try it out; the "
+                      + "browser blocks JavaScript from overriding the real Cookie header, so "
+                      + "typing a value here has no effect.",
+              schema = @Schema(type = SchemaType.STRING))
+          @CookieParam("session")
+          Cookie sessionCookie) {
     Session session = SessionAuth.requireValidSession(sessionCookie);
     if (session == null) {
       return Response.status(Response.Status.UNAUTHORIZED).build();
