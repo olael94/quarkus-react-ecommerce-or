@@ -106,6 +106,16 @@
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-smallrye-health</artifactId>
         </dependency>
+        <!-- Used to implement OpenAPI documentation (to display on Swagger UI) -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-smallrye-openapi</artifactId>
+        </dependency>
+        <!-- Provides IdentityProvider to validate username/password of development team members -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-elytron-security-properties-file</artifactId>
+        </dependency>
     </dependencies>
 
     <build>

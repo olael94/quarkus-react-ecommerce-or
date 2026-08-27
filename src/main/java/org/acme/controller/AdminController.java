@@ -19,6 +19,12 @@ import org.acme.entity.Session;
 import org.acme.entity.User;
 import org.acme.service.PasswordResetService;
 import org.acme.util.SessionAuth;
+import org.eclipse.microprofile.openapi.annotations.Operation;
+import org.eclipse.microprofile.openapi.annotations.enums.ParameterIn;
+import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
+import org.eclipse.microprofile.openapi.annotations.media.Schema;
+import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
+import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,7 +40,22 @@ public class AdminController {
   // Get all users in the database (admin only)
   @GET
   @Path("/users")
-  public Response getAllUsers(@CookieParam("session") Cookie sessionCookie) {
+  @Operation(summary = "List all users", description = "Requires ADMIN role.")
+  @APIResponse(responseCode = "200", description = "All users returned")
+  @APIResponse(responseCode = "401", description = "No valid session")
+  @APIResponse(responseCode = "403", description = "Session lacks ADMIN role")
+  public Response getAllUsers(
+      @Parameter(
+              name = "session",
+              in = ParameterIn.COOKIE,
+              description =
+                  "Session token set by POST /api/users/login. Sent automatically by the "
+                      + "browser once logged in - leave this field blank in Try it out; the "
+                      + "browser blocks JavaScript from overriding the real Cookie header, so "
+                      + "typing a value here has no effect.",
+              schema = @Schema(type = SchemaType.STRING))
+          @CookieParam("session")
+          Cookie sessionCookie) {
     Session session = SessionAuth.requireValidSession(sessionCookie);
     if (session == null) {
       return Response.status(Response.Status.UNAUTHORIZED).build();
@@ -54,10 +75,25 @@ public class AdminController {
   @POST
   @Path("/users/{id}/roles/{role}")
   @Transactional
+  @Operation(summary = "Grant a role to a user", description = "Requires ADMIN role.")
+  @APIResponse(responseCode = "200", description = "Role granted")
+  @APIResponse(responseCode = "401", description = "No valid session")
+  @APIResponse(responseCode = "403", description = "Session lacks ADMIN role")
+  @APIResponse(responseCode = "404", description = "No user with that ID")
   public Response grantRole(
       @PathParam("id") Long id,
       @PathParam("role") User.Role role,
-      @CookieParam("session") Cookie sessionCookie) {
+      @Parameter(
+              name = "session",
+              in = ParameterIn.COOKIE,
+              description =
+                  "Session token set by POST /api/users/login. Sent automatically by the "
+                      + "browser once logged in - leave this field blank in Try it out; the "
+                      + "browser blocks JavaScript from overriding the real Cookie header, so "
+                      + "typing a value here has no effect.",
+              schema = @Schema(type = SchemaType.STRING))
+          @CookieParam("session")
+          Cookie sessionCookie) {
     Session session = SessionAuth.requireValidSession(sessionCookie);
     if (session == null) {
       return Response.status(Response.Status.UNAUTHORIZED).build();
@@ -86,10 +122,28 @@ public class AdminController {
   @DELETE
   @Path("/users/{id}/roles/{role}")
   @Transactional
+  @Operation(
+      summary = "Revoke a role from a user",
+      description = "Requires ADMIN role. An admin cannot revoke their own role.")
+  @APIResponse(responseCode = "200", description = "Role revoked")
+  @APIResponse(responseCode = "400", description = "Caller tried to revoke their own role")
+  @APIResponse(responseCode = "401", description = "No valid session")
+  @APIResponse(responseCode = "403", description = "Session lacks ADMIN role")
+  @APIResponse(responseCode = "404", description = "No user with that ID")
   public Response revokeRole(
       @PathParam("id") Long id,
       @PathParam("role") User.Role role,
-      @CookieParam("session") Cookie sessionCookie) {
+      @Parameter(
+              name = "session",
+              in = ParameterIn.COOKIE,
+              description =
+                  "Session token set by POST /api/users/login. Sent automatically by the "
+                      + "browser once logged in - leave this field blank in Try it out; the "
+                      + "browser blocks JavaScript from overriding the real Cookie header, so "
+                      + "typing a value here has no effect.",
+              schema = @Schema(type = SchemaType.STRING))
+          @CookieParam("session")
+          Cookie sessionCookie) {
     Session session = SessionAuth.requireValidSession(sessionCookie);
     if (session == null) {
       return Response.status(Response.Status.UNAUTHORIZED).build();
@@ -126,8 +180,29 @@ public class AdminController {
   @POST
   @Path("/users/{id}/deactivate")
   @Transactional
+  @Operation(
+      summary = "Deactivate a user",
+      description =
+          "Requires ADMIN role. Blocks login and kills all of the target user's active "
+              + "sessions. An admin cannot deactivate their own account.")
+  @APIResponse(responseCode = "200", description = "User deactivated")
+  @APIResponse(responseCode = "400", description = "Caller tried to deactivate their own account")
+  @APIResponse(responseCode = "401", description = "No valid session")
+  @APIResponse(responseCode = "403", description = "Session lacks ADMIN role")
+  @APIResponse(responseCode = "404", description = "No user with that ID")
   public Response deactivateUser(
-      @PathParam("id") Long id, @CookieParam("session") Cookie sessionCookie) {
+      @PathParam("id") Long id,
+      @Parameter(
+              name = "session",
+              in = ParameterIn.COOKIE,
+              description =
+                  "Session token set by POST /api/users/login. Sent automatically by the "
+                      + "browser once logged in - leave this field blank in Try it out; the "
+                      + "browser blocks JavaScript from overriding the real Cookie header, so "
+                      + "typing a value here has no effect.",
+              schema = @Schema(type = SchemaType.STRING))
+          @CookieParam("session")
+          Cookie sessionCookie) {
     Session session = SessionAuth.requireValidSession(sessionCookie);
     if (session == null) {
       return Response.status(Response.Status.UNAUTHORIZED).build();
@@ -165,8 +240,24 @@ public class AdminController {
   @POST
   @Path("/users/{id}/reactivate")
   @Transactional
+  @Operation(summary = "Reactivate a user", description = "Requires ADMIN role.")
+  @APIResponse(responseCode = "200", description = "User reactivated")
+  @APIResponse(responseCode = "401", description = "No valid session")
+  @APIResponse(responseCode = "403", description = "Session lacks ADMIN role")
+  @APIResponse(responseCode = "404", description = "No user with that ID")
   public Response reactivateUser(
-      @PathParam("id") Long id, @CookieParam("session") Cookie sessionCookie) {
+      @PathParam("id") Long id,
+      @Parameter(
+              name = "session",
+              in = ParameterIn.COOKIE,
+              description =
+                  "Session token set by POST /api/users/login. Sent automatically by the "
+                      + "browser once logged in - leave this field blank in Try it out; the "
+                      + "browser blocks JavaScript from overriding the real Cookie header, so "
+                      + "typing a value here has no effect.",
+              schema = @Schema(type = SchemaType.STRING))
+          @CookieParam("session")
+          Cookie sessionCookie) {
     Session session = SessionAuth.requireValidSession(sessionCookie);
     if (session == null) {
       return Response.status(Response.Status.UNAUTHORIZED).build();
@@ -194,8 +285,26 @@ public class AdminController {
   @POST
   @Path("/users/{id}/reset-password")
   @Transactional
+  @Operation(
+      summary = "Trigger a password reset for a user",
+      description = "Requires ADMIN role. Sends the reset email on the target user's behalf.")
+  @APIResponse(responseCode = "200", description = "Reset email sent")
+  @APIResponse(responseCode = "401", description = "No valid session")
+  @APIResponse(responseCode = "403", description = "Session lacks ADMIN role")
+  @APIResponse(responseCode = "404", description = "No user with that ID")
   public Response adminRequestPasswordReset(
-      @PathParam("id") Long id, @CookieParam("session") Cookie sessionCookie) {
+      @PathParam("id") Long id,
+      @Parameter(
+              name = "session",
+              in = ParameterIn.COOKIE,
+              description =
+                  "Session token set by POST /api/users/login. Sent automatically by the "
+                      + "browser once logged in - leave this field blank in Try it out; the "
+                      + "browser blocks JavaScript from overriding the real Cookie header, so "
+                      + "typing a value here has no effect.",
+              schema = @Schema(type = SchemaType.STRING))
+          @CookieParam("session")
+          Cookie sessionCookie) {
     Session session = SessionAuth.requireValidSession(sessionCookie);
     if (session == null) {
       return Response.status(Response.Status.UNAUTHORIZED).build();
@@ -222,7 +331,22 @@ public class AdminController {
   // Get all orders (admin only)
   @GET
   @Path("/orders")
-  public Response getAllOrders(@CookieParam("session") Cookie sessionCookie) {
+  @Operation(summary = "List all orders", description = "Requires ADMIN role.")
+  @APIResponse(responseCode = "200", description = "All orders returned")
+  @APIResponse(responseCode = "401", description = "No valid session")
+  @APIResponse(responseCode = "403", description = "Session lacks ADMIN role")
+  public Response getAllOrders(
+      @Parameter(
+              name = "session",
+              in = ParameterIn.COOKIE,
+              description =
+                  "Session token set by POST /api/users/login. Sent automatically by the "
+                      + "browser once logged in - leave this field blank in Try it out; the "
+                      + "browser blocks JavaScript from overriding the real Cookie header, so "
+                      + "typing a value here has no effect.",
+              schema = @Schema(type = SchemaType.STRING))
+          @CookieParam("session")
+          Cookie sessionCookie) {
     Session session = SessionAuth.requireValidSession(sessionCookie);
     if (session == null) {
       return Response.status(Response.Status.UNAUTHORIZED).build();
@@ -248,9 +372,26 @@ public class AdminController {
   @Path("/orders/{id}")
   @Consumes(MediaType.APPLICATION_JSON)
   @Transactional
+  @Operation(summary = "Update an order", description = "Requires ADMIN role.")
+  @APIResponse(responseCode = "200", description = "Order updated")
+  @APIResponse(responseCode = "401", description = "No valid session")
+  @APIResponse(responseCode = "403", description = "Session lacks ADMIN role")
+  @APIResponse(
+      responseCode = "404",
+      description = "No order (or, if reassigning, no user) with that ID")
   public Response updateOrder(
       @PathParam("id") Long id,
-      @CookieParam("session") Cookie sessionCookie,
+      @Parameter(
+              name = "session",
+              in = ParameterIn.COOKIE,
+              description =
+                  "Session token set by POST /api/users/login. Sent automatically by the "
+                      + "browser once logged in - leave this field blank in Try it out; the "
+                      + "browser blocks JavaScript from overriding the real Cookie header, so "
+                      + "typing a value here has no effect.",
+              schema = @Schema(type = SchemaType.STRING))
+          @CookieParam("session")
+          Cookie sessionCookie,
       @Valid UpdateOrderRequestDto request) {
     Session session = SessionAuth.requireValidSession(sessionCookie);
     if (session == null) {
@@ -295,8 +436,24 @@ public class AdminController {
   @DELETE
   @Path("/orders/{id}")
   @Transactional
+  @Operation(summary = "Delete an order", description = "Requires ADMIN role.")
+  @APIResponse(responseCode = "200", description = "Order deleted")
+  @APIResponse(responseCode = "401", description = "No valid session")
+  @APIResponse(responseCode = "403", description = "Session lacks ADMIN role")
+  @APIResponse(responseCode = "404", description = "No order with that ID")
   public Response deleteOrder(
-      @PathParam("id") Long id, @CookieParam("session") Cookie sessionCookie) {
+      @PathParam("id") Long id,
+      @Parameter(
+              name = "session",
+              in = ParameterIn.COOKIE,
+              description =
+                  "Session token set by POST /api/users/login. Sent automatically by the "
+                      + "browser once logged in - leave this field blank in Try it out; the "
+                      + "browser blocks JavaScript from overriding the real Cookie header, so "
+                      + "typing a value here has no effect.",
+              schema = @Schema(type = SchemaType.STRING))
+          @CookieParam("session")
+          Cookie sessionCookie) {
     Session session = SessionAuth.requireValidSession(sessionCookie);
     if (session == null) {
       return Response.status(Response.Status.UNAUTHORIZED).build();
