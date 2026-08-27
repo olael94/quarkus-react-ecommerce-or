@@ -1,7 +1,9 @@
 package org.acme.controller;
 
+import com.stripe.exception.EventDataObjectDeserializationException;
 import com.stripe.exception.SignatureVerificationException;
 import com.stripe.model.Event;
+import com.stripe.model.EventDataObjectDeserializer;
 import com.stripe.model.StripeObject;
 import com.stripe.model.checkout.Session;
 import com.stripe.net.Webhook;
@@ -64,13 +66,26 @@ public class StripeWebhookController {
   }
 
   private void handleCheckoutSessionCompleted(Event event) {
-    Optional<StripeObject> stripeObject = event.getDataObjectDeserializer().getObject();
-    if (stripeObject.isEmpty()) {
-      logger.warn("Could not deserialize checkout.session.completed event data");
-      return;
+    EventDataObjectDeserializer deserializer = event.getDataObjectDeserializer();
+    Session session;
+    Optional<StripeObject> stripeObject = deserializer.getObject();
+    if (stripeObject.isPresent()) {
+      session = (Session) stripeObject.get();
+    } else {
+      // getObject() only succeeds when the event's embedded API version exactly matches
+      // what this SDK version expects - a newly created Stripe account defaults to the
+      // current API version, which can be newer than what stripe-java was compiled
+      // against. deserializeUnsafe() parses the raw JSON directly instead, skipping
+      // that version check.
+      try {
+        session = (Session) deserializer.deserializeUnsafe();
+      } catch (EventDataObjectDeserializationException deserializationException) {
+        logger.warn(
+            "Could not deserialize checkout.session.completed event data",
+            deserializationException);
+        return;
+      }
     }
-
-    Session session = (Session) stripeObject.get();
     Long orderId = Long.parseLong(session.getClientReferenceId());
 
     Order order = Order.findById(orderId);
