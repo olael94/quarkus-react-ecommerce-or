@@ -61,6 +61,23 @@ class ApiDocsAuthTest {
   }
 
   @Test
+  void metrics_noCredentials_returns401() {
+    given().when().get("/q/metrics").then().statusCode(401);
+  }
+
+  @Test
+  void metrics_correctCredentials_returns200() {
+    given()
+        .auth()
+        .preemptive()
+        .basic("teamdocs", "test-team-password")
+        .when()
+        .get("/q/metrics")
+        .then()
+        .statusCode(200);
+  }
+
+  @Test
   void health_staysUnauthenticated() {
     given().when().get("/q/health").then().statusCode(200);
   }

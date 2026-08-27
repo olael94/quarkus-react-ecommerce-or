@@ -1,5 +1,6 @@
 package org.acme.controller;
 
+import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.*;
@@ -30,6 +31,7 @@ public class SupportController {
 
   private static final Logger logger = LoggerFactory.getLogger(SupportController.class);
   @Inject PasswordResetService passwordResetService;
+  @Inject MeterRegistry registry;
 
   // Get all orders (support or admin only)
   @GET
@@ -127,6 +129,7 @@ public class SupportController {
     order.persist();
 
     logger.info("Refunded order with ID: {} for amount: {}", id, order.getTotalAmount());
+    registry.counter("refunds.issued").increment();
     return Response.ok(new MessageDto("Order " + order.id + " refunded successfully")).build();
   }
 
