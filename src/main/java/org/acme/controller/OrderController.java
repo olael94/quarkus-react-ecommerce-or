@@ -131,25 +131,6 @@ public class OrderController {
         .build();
   }
 
-  // Get GUEST order by guestTrackingId
-  @GET
-  @Path("{guestTrackingId}")
-  public Response getGuestOrderByTrackingId(@PathParam("guestTrackingId") String guestTrackingId) {
-    logger.info("Fetching order for guestTrackingId: {}", guestTrackingId);
-    Order order = Order.find("guestTrackingId", guestTrackingId).firstResult();
-    if (order == null) {
-      logger.warn("Order not found for guestTrackingId: {}", guestTrackingId);
-      return Response.status(Response.Status.NOT_FOUND)
-          .entity(new MessageDto("Order not found")) // User will see this message
-          .build();
-    }
-
-    logger.info("Order found for guestTrackingId: {}", guestTrackingId);
-    // User will see this message
-    String message = "Order found for guestTrackingId: " + order.getGuestTrackingId();
-    return Response.ok(new MessageDto(message)).build();
-  }
-
   // Get a specific USER order by ID
   @GET
   @Path("{id}")
