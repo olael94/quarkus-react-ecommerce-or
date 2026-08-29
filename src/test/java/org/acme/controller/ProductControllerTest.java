@@ -6,8 +6,14 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 
+import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -15,10 +21,22 @@ import org.acme.TestAuthHelper;
 import org.acme.entity.User;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 /** Covers every endpoint in ProductController, grouped by concern. */
 @QuarkusTest
 class ProductControllerTest {
+
+  @InjectMock S3Client s3Client;
+
+  private File tempImageFile(String suffix, int sizeBytes) throws IOException {
+    File file = File.createTempFile("test-image", suffix);
+    file.deleteOnExit();
+    Files.write(file.toPath(), new byte[sizeBytes]);
+    return file;
+  }
 
   private long idOf(AuthenticatedUser user) {
     return given()
@@ -395,6 +413,124 @@ class ProductControllerTest {
           .put("/api/products/999999999")
           .then()
           .statusCode(404);
+    }
+  }
+
+  @Nested
+  class UploadProductImage {
+
+    @Test
+    void uploadImage_asOwner_returns200() throws IOException {
+      AuthenticatedUser owner = TestAuthHelper.registerAndLogin();
+      long ownerId = idOf(owner);
+      long productId = TestAuthHelper.createProductForUser(ownerId, "Original Product", 9.99);
+      File image = tempImageFile(".jpg", 100);
+
+      given()
+          .cookie("session", owner.sessionCookie())
+          .header("X-CSRF-Token", owner.csrfToken())
+          .multiPart("image", image, "image/jpeg")
+          .post("/api/products/" + productId + "/image")
+          .then()
+          .statusCode(200)
+          .body("imageURL", containsString("products/" + productId + ".jpg"));
+
+      verify(s3Client).putObject(any(PutObjectRequest.class), any(RequestBody.class));
+    }
+
+    @Test
+    void uploadImage_asAdmin_forSomeoneElseProduct_returns200() throws IOException {
+      AuthenticatedUser owner = TestAuthHelper.registerAndLogin();
+      long ownerId = idOf(owner);
+      long productId = TestAuthHelper.createProductForUser(ownerId, "Original Product", 9.99);
+
+      AuthenticatedUser admin = TestAuthHelper.registerAndLogin();
+      TestAuthHelper.addUserRole(admin.email(), User.Role.ADMIN);
+      File image = tempImageFile(".png", 100);
+
+      given()
+          .cookie("session", admin.sessionCookie())
+          .header("X-CSRF-Token", admin.csrfToken())
+          .multiPart("image", image, "image/png")
+          .post("/api/products/" + productId + "/image")
+          .then()
+          .statusCode(200);
+    }
+
+    @Test
+    void uploadImage_asNonOwnerNonAdmin_returns403() throws IOException {
+      AuthenticatedUser owner = TestAuthHelper.registerAndLogin();
+      long ownerId = idOf(owner);
+      long productId = TestAuthHelper.createProductForUser(ownerId, "Original Product", 9.99);
+
+      AuthenticatedUser someoneElse = TestAuthHelper.registerAndLogin();
+      File image = tempImageFile(".jpg", 100);
+
+      given()
+          .cookie("session", someoneElse.sessionCookie())
+          .header("X-CSRF-Token", someoneElse.csrfToken())
+          .multiPart("image", image, "image/jpeg")
+          .post("/api/products/" + productId + "/image")
+          .then()
+          .statusCode(403);
+    }
+
+    @Test
+    void uploadImage_noSession_returns401() throws IOException {
+      File image = tempImageFile(".jpg", 100);
+
+      given()
+          .multiPart("image", image, "image/jpeg")
+          .post("/api/products/1/image")
+          .then()
+          .statusCode(401);
+    }
+
+    @Test
+    void uploadImage_notFound_returns404() throws IOException {
+      AuthenticatedUser admin = TestAuthHelper.registerAndLogin();
+      TestAuthHelper.addUserRole(admin.email(), User.Role.ADMIN);
+      File image = tempImageFile(".jpg", 100);
+
+      given()
+          .cookie("session", admin.sessionCookie())
+          .header("X-CSRF-Token", admin.csrfToken())
+          .multiPart("image", image, "image/jpeg")
+          .post("/api/products/999999999/image")
+          .then()
+          .statusCode(404);
+    }
+
+    @Test
+    void uploadImage_wrongContentType_returns400() throws IOException {
+      AuthenticatedUser owner = TestAuthHelper.registerAndLogin();
+      long ownerId = idOf(owner);
+      long productId = TestAuthHelper.createProductForUser(ownerId, "Original Product", 9.99);
+      File notAnImage = tempImageFile(".txt", 100);
+
+      given()
+          .cookie("session", owner.sessionCookie())
+          .header("X-CSRF-Token", owner.csrfToken())
+          .multiPart("image", notAnImage, "text/plain")
+          .post("/api/products/" + productId + "/image")
+          .then()
+          .statusCode(400);
+    }
+
+    @Test
+    void uploadImage_tooLarge_returns400() throws IOException {
+      AuthenticatedUser owner = TestAuthHelper.registerAndLogin();
+      long ownerId = idOf(owner);
+      long productId = TestAuthHelper.createProductForUser(ownerId, "Original Product", 9.99);
+      File tooLarge = tempImageFile(".jpg", 6 * 1024 * 1024); // over the 5 MB limit
+
+      given()
+          .cookie("session", owner.sessionCookie())
+          .header("X-CSRF-Token", owner.csrfToken())
+          .multiPart("image", tooLarge, "image/jpeg")
+          .post("/api/products/" + productId + "/image")
+          .then()
+          .statusCode(400);
     }
   }
 
