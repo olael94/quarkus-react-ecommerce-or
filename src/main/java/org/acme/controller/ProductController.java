@@ -1,5 +1,6 @@
 package org.acme.controller;
 
+import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
@@ -13,14 +14,20 @@ import org.acme.entity.Product;
 import org.acme.entity.Session;
 import org.acme.entity.User;
 import org.acme.util.SessionAuth;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.enums.ParameterIn;
 import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
+import org.jboss.resteasy.reactive.RestForm;
+import org.jboss.resteasy.reactive.multipart.FileUpload;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 @Path("/api/products")
 @Produces(MediaType.APPLICATION_JSON)
@@ -28,6 +35,18 @@ import org.slf4j.LoggerFactory;
 public class ProductController {
   // The logger object is used to log messages to the console.
   private static final Logger logger = LoggerFactory.getLogger(ProductController.class);
+
+  @Inject S3Client s3Client;
+
+  @Inject
+  @ConfigProperty(name = "app.s3.product-images-bucket")
+  String imagesBucket;
+
+  @Inject
+  @ConfigProperty(name = "quarkus.s3.aws.region")
+  String awsRegion;
+
+  private static final long MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
 
   // Create a new product
   @POST
@@ -173,6 +192,104 @@ public class ProductController {
             + existingProduct.id
             + " updated successfully";
     return Response.ok(new MessageDto(message)).build();
+  }
+
+  // Upload or replace a product's image
+  @POST
+  @Path("{id}/image")
+  @Consumes(MediaType.MULTIPART_FORM_DATA)
+  @Transactional
+  @Operation(
+      summary = "Upload a product image",
+      description =
+          "Allowed for the product's owner, or a caller with ADMIN role. Replaces the "
+              + "product's existing image, if any. Accepts JPEG, PNG, or "
+              + "WEBP, up to 5 MB")
+  @APIResponse(responseCode = "200", description = "Image uploaded, imageURL updated")
+  @APIResponse(responseCode = "400", description = "File missing, not an image, or too large")
+  @APIResponse(responseCode = "401", description = "No valid session")
+  @APIResponse(responseCode = "403", description = "Session is neither the owner nor an admin")
+  @APIResponse(responseCode = "404", description = "No product with that ID")
+  public Response uploadProductImage(
+      @PathParam("id") Long id,
+      @RestForm("image") FileUpload image,
+      @Parameter(
+              name = "session",
+              in = ParameterIn.COOKIE,
+              description =
+                  "Session token set by POST /api/users/login. Sent automatically by the "
+                      + "browser once logged in - leave this field blank in Try it out; the "
+                      + "browser blocks JavaScript from overriding the real Cookie header, so "
+                      + "typing a value here has no effect.",
+              schema = @Schema(type = SchemaType.STRING))
+          @CookieParam("session")
+          Cookie sessionCookie) {
+    Session session = SessionAuth.requireValidSession(sessionCookie);
+    if (session == null) {
+      return Response.status(Response.Status.UNAUTHORIZED).build();
+    }
+
+    Product product = Product.findById(id);
+    if (product == null) {
+      return Response.status(Response.Status.NOT_FOUND)
+          .entity(new MessageDto("Product not found"))
+          .build();
+    }
+
+    boolean isOwner = product.getOwner() != null && product.getOwner().id.equals(session.user.id);
+    boolean isAdmin = session.user.hasRole(User.Role.ADMIN);
+    if (!isOwner && !isAdmin) {
+      return Response.status(Response.Status.FORBIDDEN).build();
+    }
+
+    // VALIDATE THE FILE
+
+    // Check if the file is present
+    if (image == null) {
+      return Response.status(Response.Status.BAD_REQUEST)
+          .entity(new MessageDto("No image file provided"))
+          .build();
+    }
+
+    String extension =
+        switch (image.contentType()) {
+          case "image/jpeg" -> "jpg";
+          case "image/png" -> "png";
+          case "image/webp" -> "webp";
+          default -> null;
+        };
+
+    // Check if the file is an image with a valid extension
+    if (extension == null) {
+      return Response.status(Response.Status.BAD_REQUEST)
+          .entity(new MessageDto("Image must be JPEG, PNG, or WEBP"))
+          .build();
+    }
+
+    // Check if the file is not too large
+    if (image.size() > MAX_IMAGE_SIZE_BYTES) {
+      return Response.status(Response.Status.BAD_REQUEST)
+          .entity(new MessageDto("Image must be less than 5 MB"))
+          .build();
+    }
+
+    // UPLOAD to S3, UPDATE THE PRODUCT
+    String key = "products/" + id + "." + extension;
+    String url = "https://" + imagesBucket + ".s3." + awsRegion + ".amazonaws.com/" + key;
+
+    // Upload the image to S3
+    s3Client.putObject(
+        PutObjectRequest.builder()
+            .bucket(imagesBucket)
+            .key(key)
+            .contentType(image.contentType())
+            .build(),
+        RequestBody.fromFile(image.filePath()));
+    product.setImageURL(url);
+    product.persist();
+
+    logger.info("Uploaded image for product {}: {}", id, url);
+    return Response.ok(new ProductDto(product)).build();
   }
 
   // Delete a product by ID

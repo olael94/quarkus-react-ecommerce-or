@@ -121,6 +121,18 @@
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-micrometer-registry-prometheus</artifactId>
         </dependency>
+        <!-- Used to upload product images to S3 -->
+        <dependency>
+            <groupId>io.quarkiverse.amazonservices</groupId>
+            <artifactId>quarkus-amazon-s3</artifactId>
+            <version>3.15.1</version>
+        </dependency>
+        <!-- Required by S3Client's sync HTTP transport - not pulled in automatically -->
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>url-connection-client</artifactId>
+            <version>2.42.7</version>
+        </dependency>
     </dependencies>
 
     <build>
